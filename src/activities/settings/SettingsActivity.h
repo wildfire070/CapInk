@@ -170,6 +170,7 @@ class SettingsActivity final : public Activity {
 
   void enterCategory(int categoryIndex);
   void toggleCurrentSetting();
+  void openSleepTimeoutPicker();
   void rebuildSettingsLists();
 
  public:
