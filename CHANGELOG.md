@@ -7,6 +7,8 @@
 ### Fixed
 - Relaxed KOReader Sync auth response validation so compatible self-hosted servers that return valid JSON on successful login can authenticate.
 
+- Fixed a crash when opening the XTC chapter selector on memory-constrained builds.
+
 ### Changed
 
 ## [v1.2.11.1] - 2026-05-15
