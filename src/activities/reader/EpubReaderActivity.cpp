@@ -18,10 +18,10 @@
 #include <memory>
 
 #include "../settings/KOReaderSettingsActivity.h"
-#include "BookStatsActivity.h"
 #include "BookFusionBookIdStore.h"
 #include "BookFusionSyncActivity.h"
 #include "BookFusionTokenStore.h"
+#include "BookStatsActivity.h"
 #include "CrossPointSettings.h"
 #include "CrossPointState.h"
 #include "EpubReaderBookmarkListActivity.h"
