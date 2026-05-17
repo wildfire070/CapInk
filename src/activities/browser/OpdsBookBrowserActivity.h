@@ -56,5 +56,5 @@ class OpdsBookBrowserActivity final : public Activity {
   void downloadBook(const OpdsEntry& book);
   void launchSearch();
   void performSearch(const std::string& query);
-  bool preventAutoSleep() override { return true; }
+  bool preventAutoSleep() override;
 };

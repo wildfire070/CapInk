@@ -8,6 +8,7 @@
 - Added a 9pt `Itty Bitty` reader font size, plus build flags for omitting Itty Bitty and Large reader font assets in size-constrained firmware variants.
 
 ### Fixed
+- Reduced battery drain risk by letting the OPDS browser idle normally after catalog pages load and by putting the X3 tilt sensor back to sleep outside the reader.
 - Disabled WiFi power saving during OPDS browsing, regular file downloads, and OTA update checks so network transfers can run more consistently.
 - Reduced stack usage when copying files over WebDAV.
 - Fixed Lyra Carousel selected menu icons rendering as black squares on X3 devices.

@@ -435,7 +435,23 @@ bool handleGlobalPowerButtonAction(const CrossPointSettings::SHORT_PWRBTN action
 
 namespace {
 constexpr uint16_t POST_SLEEP_SCREEN_SETTLE_MS = 500;
+constexpr uint8_t TILT_SLEEP_MAX_ATTEMPTS = 3;
+constexpr uint16_t TILT_SLEEP_RETRY_DELAY_MS = 10;
+
+void putTiltSensorToSleepForDeepSleep() {
+  if (!halTiltSensor.isAvailable()) {
+    return;
+  }
+
+  for (uint8_t attempt = 0; attempt < TILT_SLEEP_MAX_ATTEMPTS; ++attempt) {
+    if (halTiltSensor.deepSleep()) {
+      return;
+    }
+    delay(TILT_SLEEP_RETRY_DELAY_MS);
+  }
+  LOG_ERR("MAIN", "Tilt sensor did not confirm sleep before deep sleep");
 }
+}  // namespace
 
 // Enter deep sleep mode
 void enterDeepSleep() {
@@ -446,7 +462,7 @@ void enterDeepSleep() {
   activityManager.goToSleep();
   delay(POST_SLEEP_SCREEN_SETTLE_MS);
 
-  halTiltSensor.deepSleep();
+  putTiltSensorToSleepForDeepSleep();
   display.deepSleep();
   LOG_DBG("MAIN", "Entering deep sleep");
 
