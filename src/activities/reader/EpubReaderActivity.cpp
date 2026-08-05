@@ -24,6 +24,7 @@
 
 #include "../settings/DictionarySelectActivity.h"
 #include "../settings/KOReaderSettingsActivity.h"
+#include "BookFusionSyncActivity.h"
 #include "BookStatsActivity.h"
 #include "ClipSelectionActivity.h"
 #include "ClippingStore.h"
@@ -3390,6 +3391,34 @@ void EpubReaderActivity::onReaderMenuConfirm(EpubReaderMenuActivity::MenuAction 
         pauseReadingPaceTimer("sync_progress");
         activityManager.replaceActivity(std::move(restartActivity));
       }
+      break;
+    }
+    case EpubReaderMenuActivity::MenuAction::BOOKFUSION_SYNC: {
+      if (activeFootnotePreview) {
+        requestUpdate();
+        break;
+      }
+      const int currentPage = section ? section->currentPage : nextPageNumber;
+      const int totalPages = section ? section->estimatedTotalPages() : cachedChapterTotalPageCount;
+
+      if (!saveProgress(currentSpineIndex, currentPage, totalPages)) {
+        LOG_ERR("BFSync", "Aborting sync because current progress could not be saved");
+        pendingSyncSaveError = true;
+        requestUpdate();
+        return;
+      }
+
+      auto restartActivity = makeUniqueNoThrow<BookFusionSyncActivity>(renderer, mappedInput, epub->getPath());
+      if (!restartActivity) {
+        LOG_ERR("BFSync", "OOM: restart handoff (free=%u maxAlloc=%u)", ESP.getFreeHeap(), ESP.getMaxAllocHeap());
+        drawToast(renderer, tr(STR_BF_LOW_MEMORY));
+        delay(1200);
+        requestUpdate();
+        break;
+      }
+
+      pauseReadingPaceTimer("bookfusion_sync");
+      activityManager.replaceActivity(std::move(restartActivity));
       break;
     }
     case EpubReaderMenuActivity::MenuAction::NEARBY_POSITION_SYNC: {

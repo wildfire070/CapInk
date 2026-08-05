@@ -34,18 +34,23 @@ class HttpDownloader {
   struct DownloadOptions {
     explicit DownloadOptions(bool preservePartial = false, bool resumePartial = false,
                              CancelCallback shouldCancel = nullptr, size_t bufferSize = 0,
-                             Transport transport = Transport::ESP_HTTP)
+                             Transport transport = Transport::ESP_HTTP, std::string bearerToken = "")
         : preservePartial(preservePartial),
           resumePartial(resumePartial),
           shouldCancel(std::move(shouldCancel)),
           bufferSize(bufferSize),
-          transport(transport) {}
+          transport(transport),
+          bearerToken(std::move(bearerToken)) {}
 
     bool preservePartial;
     bool resumePartial;
     CancelCallback shouldCancel;
     size_t bufferSize;
     Transport transport;
+    // When non-empty, sent as "Authorization: Bearer <token>" instead of the
+    // username/password Basic auth below. Same same-origin redirect gating
+    // applies to both: never sent across a redirect to a different origin.
+    std::string bearerToken;
   };
 
   /**

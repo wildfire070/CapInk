@@ -1,3 +1,13 @@
+## [Unreleased]
+
+### Added
+
+- BookFusion cloud sync: sign in with your BookFusion account via OAuth device-code pairing (a short code and QR code), browse and download from your BookFusion library by category, and sync reading progress between BookFusion and this device.
+
+### Changed
+
+- Firmware rebranded from CrossInk to InkCap. User-visible product name, boot/sleep screens, About label, and the on-device web portal now say "InkCap"; internal `CrossPoint`-prefixed identifiers, the `.crosspoint` cache directory, network-facing User-Agent strings, and `CROSSINK_*` build macros are unchanged.
+
 ## [v1.5.0] - 2026-08-04
 
 ### Added
