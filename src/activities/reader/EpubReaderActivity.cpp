@@ -2224,8 +2224,7 @@ void EpubReaderActivity::openReaderMenu() {
           saveReaderOptionsForBook, this, saveGlobalSettingsForBookReader, this, beginGlobalSettingsEditForBookReader,
           this, !previewActive && epub && epub->hasStablePageNumbers(), endGlobalSettingsEditForBookReader, this,
           bookSettings.dictionarySdFontFamilyName, bookSettings.dictionaryFontPointSize,
-          bookSettings.hasDictionaryFontOverride,
-          saveDictionaryFontForBookReader, this),
+          bookSettings.hasDictionaryFontOverride, saveDictionaryFontForBookReader, this),
       [this](const ActivityResult& result) {
         if (const auto* clipping = std::get_if<ClippingJumpResult>(&result.data)) {
           applyOrientation(clipping->orientation);
