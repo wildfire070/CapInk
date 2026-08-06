@@ -287,6 +287,10 @@ void DictionaryWordSelectActivity::prebuildAdvanceTable() {
     return;
   }
 
+  // cppcheck cannot resolve std::unique_ptr<T[]>::get() through this toolchain's
+  // stripped-down STL headers and treats the result as void*; a typed local
+  // pointer keeps the arithmetic below on a concrete uint32_t* instead.
+  uint32_t* const codepointsBegin = codepoints.get();
   uint16_t codepointCount = 0;
   uint8_t pageStyleMask = 0;
   bool truncated = false;
@@ -299,8 +303,8 @@ void DictionaryWordSelectActivity::prebuildAdvanceTable() {
       const auto* cursor = reinterpret_cast<const unsigned char*>(block->wordText(i));
       uint32_t codepoint = 0;
       while ((codepoint = utf8NextCodepoint(&cursor))) {
-        if (std::find(codepoints.get(), codepoints.get() + codepointCount, codepoint) !=
-            codepoints.get() + codepointCount) {
+        if (std::find(codepointsBegin, codepointsBegin + codepointCount, codepoint) !=
+            codepointsBegin + codepointCount) {
           continue;
         }
         if (codepointCount >= ADVANCE_CODEPOINT_CAPACITY) {
@@ -396,7 +400,7 @@ bool DictionaryWordSelectActivity::allocateWorkingSet() {
       budget.maxSourceWordBytes = std::max(budget.maxSourceWordBytes, wordLength + 1);
       if (wordLength > UINT16_MAX || !utf8ContainsLookupCharacter(word)) continue;
 
-      forEachWordPart(word, wordLength, [&](const WordPartRef part) {
+      forEachWordPart(word, wordLength, [&](const WordPartRef& part) {
         if (!valid || part.length == 0 || part.length > UINT16_MAX || budget.wordCount >= UINT16_MAX) {
           valid = false;
           return;
@@ -515,8 +519,11 @@ bool DictionaryWordSelectActivity::appendText(const char* text, const size_t len
     return false;
   }
   offset = static_cast<uint16_t>(workingSet_.textUsed);
-  memcpy(workingSet_.textPool.get() + workingSet_.textUsed, text, length);
-  workingSet_.textPool[workingSet_.textUsed + length] = '\0';
+  // Typed local avoids cppcheck misreading unique_ptr<char[]>::get() as void*
+  // through this toolchain's stripped-down STL headers.
+  char* const textPoolBegin = workingSet_.textPool.get();
+  memcpy(textPoolBegin + workingSet_.textUsed, text, length);
+  textPoolBegin[workingSet_.textUsed + length] = '\0';
   workingSet_.textUsed += length + 1;
   return true;
 }
@@ -532,7 +539,10 @@ bool DictionaryWordSelectActivity::appendMergedText(const char* first, const siz
     return false;
   }
   offset = static_cast<uint16_t>(workingSet_.textUsed);
-  char* destination = workingSet_.textPool.get() + workingSet_.textUsed;
+  // Typed local avoids cppcheck misreading unique_ptr<char[]>::get() as void*
+  // through this toolchain's stripped-down STL headers.
+  char* const textPoolBegin = workingSet_.textPool.get();
+  char* destination = textPoolBegin + workingSet_.textUsed;
   memcpy(destination, first, firstLength);
   memcpy(destination + firstLength, second, secondLength);
   destination[mergedLength] = '\0';
@@ -569,6 +579,9 @@ bool DictionaryWordSelectActivity::extractWords() {
   const size_t scratchHalf = workingSet_.measurementScratchCapacity / 2U;
   char* prefixScratch = workingSet_.measurementScratch.get();
   char* sanitizeScratch = prefixScratch ? prefixScratch + scratchHalf : nullptr;
+  // Typed local avoids cppcheck misreading unique_ptr<char[]>::get() as void*
+  // through this toolchain's stripped-down STL headers.
+  char* const textPoolBegin = workingSet_.textPool.get();
 
   // Fallback used by blocks where we can't derive a per-line gap
   // (single-word blocks, degenerate first-word measurements).
@@ -671,7 +684,7 @@ bool DictionaryWordSelectActivity::extractWords() {
       }
 
       bool partSucceeded = true;
-      forEachWordPart(wordText, wordLength, [&](const WordPartRef part) {
+      forEachWordPart(wordText, wordLength, [&](const WordPartRef& part) {
         if (!partSucceeded || part.length == 0) return;
         int16_t offsetX = 0;
         if (part.sourceOffset > 0) {
@@ -690,7 +703,7 @@ bool DictionaryWordSelectActivity::extractWords() {
           partSucceeded = false;
           return;
         }
-        const char* storedPart = workingSet_.textPool.get() + offset;
+        const char* storedPart = textPoolBegin + offset;
         const int16_t partWidth = measureWordAdvanceX(renderer, SETTINGS.getReaderFontId(), storedPart, part.length,
                                                       wordStyle, sanitizeScratch, scratchHalf);
         WordSelectNavigator::WordInfo word;
@@ -714,6 +727,9 @@ bool DictionaryWordSelectActivity::extractWords() {
 }
 
 bool DictionaryWordSelectActivity::mergeHyphenatedWords() {
+  // Typed local avoids cppcheck misreading unique_ptr<char[]>::get() as void*
+  // through this toolchain's stripped-down STL headers.
+  char* const textPoolBegin = workingSet_.textPool.get();
   for (size_t rowIndex = 0; rowIndex + 1 < workingSet_.rowCount; ++rowIndex) {
     const auto& row = workingSet_.rows[rowIndex];
     const auto& nextRow = workingSet_.rows[rowIndex + 1];
@@ -722,10 +738,10 @@ bool DictionaryWordSelectActivity::mergeHyphenatedWords() {
     const size_t nextWordIndex = nextRow.firstWord;
     auto& last = workingSet_.words[lastWordIndex];
     auto& next = workingSet_.words[nextWordIndex];
-    const char* lastText = workingSet_.textPool.get() + last.textOffset;
+    const char* lastText = textPoolBegin + last.textOffset;
     if (!utf8EndsWithHyphen(lastText, last.textLen) || lastText[0] == '-') continue;
 
-    const char* nextText = workingSet_.textPool.get() + next.textOffset;
+    const char* nextText = textPoolBegin + next.textOffset;
     const size_t nextSkip = next.textLen > 0 && nextText[0] == '-' ? 1 : 0;
     uint16_t mergedOffset = 0;
     if (!appendMergedText(lastText, last.textLen - 1, nextText + nextSkip, next.textLen - nextSkip, mergedOffset)) {
@@ -744,7 +760,7 @@ bool DictionaryWordSelectActivity::mergeHyphenatedWords() {
     const auto& lastRow = workingSet_.rows[workingSet_.rowCount - 1];
     if (lastRow.wordCount > 0) {
       auto& last = workingSet_.words[lastRow.firstWord + lastRow.wordCount - 1];
-      const char* lastText = workingSet_.textPool.get() + last.textOffset;
+      const char* lastText = textPoolBegin + last.textOffset;
       if (utf8EndsWithHyphen(lastText, last.textLen) && lastText[0] != '-') {
         uint16_t mergedOffset = 0;
         if (!appendMergedText(lastText, last.textLen - 1, nextPageFirstWord.c_str(), nextPageFirstWord.size(),
