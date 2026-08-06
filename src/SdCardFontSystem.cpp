@@ -342,6 +342,13 @@ uint8_t SdCardFontSystem::resolveLegacySizeStep(const char* familyName, const ui
 
 DictionaryFontActivation SdCardFontSystem::activateDictionaryFont(GfxRenderer& renderer, const char* familyName,
                                                                   uint8_t targetPointSize) {
+  // A non-zero size with no dedicated family means "use the reader's installed
+  // family at this size". This keeps the setting useful when the same custom
+  // family is wanted for reading and definitions without keeping two families
+  // resident.
+  if ((!familyName || familyName[0] == '\0') && targetPointSize != 0 && SETTINGS.sdFontFamilyName[0] != '\0') {
+    familyName = SETTINGS.sdFontFamilyName;
+  }
   if (!familyName || familyName[0] == '\0') {
     return {restoreReaderFont(renderer), false};
   }
@@ -373,6 +380,19 @@ DictionaryFontActivation SdCardFontSystem::activateDictionaryFont(GfxRenderer& r
     const int fontId = manager_.getFontId(manager_.currentFamilyName());
     MemoryBudget::logHeapShape("dict.font_reused_reader");
     return {fontId, true};
+  }
+
+  // A reader SD font can retain page glyphs, kerning, and advance tables after
+  // a long reading session. They are disposable at this handoff: keeping them
+  // through the headroom check makes a dictionary font appear unavailable until
+  // its book cache is deleted or the heap happens to be less fragmented.
+  const int activeReaderFontId = SETTINGS.getReaderFontId();
+  const auto beforeCacheRelease = MemoryBudget::snapshot();
+  if (renderer.releaseSdCardFontForLowMemory(activeReaderFontId)) {
+    const auto afterCacheRelease = MemoryBudget::snapshot();
+    LOG_DBG("SDFS", "Released reader SD-font caches before dictionary swap: free=%u->%u maxAlloc=%u->%u",
+            beforeCacheRelease.freeHeap, afterCacheRelease.freeHeap, beforeCacheRelease.maxAllocHeap,
+            afterCacheRelease.maxAllocHeap);
   }
 
   const auto heap = MemoryBudget::snapshot();

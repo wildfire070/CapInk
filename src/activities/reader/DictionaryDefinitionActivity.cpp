@@ -15,6 +15,7 @@
 #include <cstring>
 #include <memory>
 #include <numeric>
+#include <optional>
 
 #include "../settings/DictionarySelectActivity.h"
 #include "CrossPointSettings.h"
@@ -1471,13 +1472,19 @@ void DictionaryDefinitionActivity::render(RenderLock&&) {
   bool definitionTextRendered = false;
   if (renderer.isSdCardFont(bodyFontId)) {
     if (auto* fcm = renderer.getFontCacheManager()) {
+      // Keep this alive through the word-select overlay below. Its destructor
+      // clears SD glyph bitmaps, and that overlay redraws the selected word.
+      std::optional<FontCacheManager::PrewarmScope> definitionRenderScope;
       const auto prewarmAndRender = [&]() {
-        auto scope = fcm->createPrewarmScope(FontCacheManager::PreparationPolicy::DictionaryLean);
+        definitionRenderScope.emplace(*fcm, FontCacheManager::PreparationPolicy::DictionaryLean);
         renderTitle();
         renderBody();  // scan pass
-        if (!scope.endScanAndPrewarm()) return false;
+        if (!definitionRenderScope->endScanAndPrewarm()) {
+          definitionRenderScope.reset();
+          return false;
+        }
         renderTitle();
-        renderBody();  // prepared render; scope keeps glyphs alive until this returns
+        renderBody();  // prepared render
         return true;
       };
 

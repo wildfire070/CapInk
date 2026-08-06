@@ -16,8 +16,14 @@ class CssParser;
 struct SectionBuildOptions {
   const char* previewAnchor = nullptr;
   uint16_t previewMaxPages = 0;
+  // Full-section callers can stop between parser chunks without creating a
+  // readable partial cache. The callback must remain valid for the build.
+  bool (*shouldCancel)(void* context) = nullptr;
+  void* cancelContext = nullptr;
+  bool* cancellationObserved = nullptr;
 
   bool isPreview() const { return previewAnchor && previewAnchor[0] != '\0' && previewMaxPages > 0; }
+  bool isCancellationRequested() const { return shouldCancel && shouldCancel(cancelContext); }
 };
 
 class Section {

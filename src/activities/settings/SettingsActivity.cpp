@@ -1171,6 +1171,9 @@ void SettingsActivity::buildSettingsScreen(UiApp::ScreenType& screen) {
     } else {
       tabStyles.selected.background = fui::Paint::dither(fui::Color::LightGray);
       tabStyles.selected.foreground = fui::Paint::solid(fui::Color::Black);
+      // Let the selected underline meet the shared bottom divider, as in the
+      // original Lyra tab bar. The default bottom inset leaves a visible gap.
+      tabProps.tabInset.bottom = 0;
       tabProps.selectedUnderline = 2;
     }
     // Focus/flash states keep the pill instead of falling back to an unset

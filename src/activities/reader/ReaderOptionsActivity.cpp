@@ -161,8 +161,10 @@ void ReaderOptionsActivity::rebuildSettingsList() {
   dictionaryFontSize.category = StrId::STR_CAT_READER;
   dictionaryFontSize.enumStringValues.push_back(tr(STR_DICT_USE_GLOBAL));
   dictionaryFontSize.enumRawValues.push_back(0);
-  if (dictionaryFontFamilyName[0] != '\0') {
-    if (const auto* family = sdFontSystem.registry().findFamily(dictionaryFontFamilyName)) {
+  const char* dictionarySizeFamily =
+      dictionaryFontFamilyName[0] != '\0' ? dictionaryFontFamilyName : SETTINGS.sdFontFamilyName;
+  if (dictionarySizeFamily[0] != '\0') {
+    if (const auto* family = sdFontSystem.registry().findFamily(dictionarySizeFamily)) {
       dictionaryFontSize.enumStringValues.reserve(family->files.size() + 1);
       dictionaryFontSize.enumRawValues.reserve(family->files.size() + 1);
       // Build a sorted, unique list directly from the catalog already resident
@@ -378,6 +380,13 @@ void ReaderOptionsActivity::openDictionaryFontSizePicker(const SettingInfo& sett
       if (index == 0) {
         dictionaryFontPointSize = SETTINGS.dictionaryFontPointSize;
       } else if (dictionaryFontFamilyName[0] != '\0') {
+        hasDictionaryFontOverride = true;
+        dictionaryFontPointSize = pointSize;
+      } else if (SETTINGS.sdFontFamilyName[0] != '\0') {
+        // Persist the reader family explicitly for this book so its size can
+        // differ from the global dictionary default after the menu closes.
+        std::strncpy(dictionaryFontFamilyName, SETTINGS.sdFontFamilyName, sizeof(dictionaryFontFamilyName) - 1);
+        dictionaryFontFamilyName[sizeof(dictionaryFontFamilyName) - 1] = '\0';
         hasDictionaryFontOverride = true;
         dictionaryFontPointSize = pointSize;
       }

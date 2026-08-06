@@ -21,6 +21,7 @@ std::string utf8ComposeNfc(const std::string& in);
 // Returns true when text contains at least one Unicode letter/number-like
 // codepoint that can be sent to dictionary lookup. Punctuation, symbols,
 // whitespace, and combining marks do not count by themselves.
+bool utf8ContainsLookupCharacter(const char* text);
 bool utf8ContainsLookupCharacter(const std::string& text);
 
 // Trim punctuation, symbols, and whitespace from the edges of a UTF-8 lookup

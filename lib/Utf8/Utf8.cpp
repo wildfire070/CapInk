@@ -107,13 +107,16 @@ std::string utf8ComposeNfc(const std::string& in) {
   return out;
 }
 
-bool utf8ContainsLookupCharacter(const std::string& text) {
-  const auto* cursor = reinterpret_cast<const unsigned char*>(text.c_str());
+bool utf8ContainsLookupCharacter(const char* text) {
+  if (!text) return false;
+  const auto* cursor = reinterpret_cast<const unsigned char*>(text);
   while (*cursor) {
     if (isLookupCoreCharacter(utf8NextCodepoint(&cursor))) return true;
   }
   return false;
 }
+
+bool utf8ContainsLookupCharacter(const std::string& text) { return utf8ContainsLookupCharacter(text.c_str()); }
 
 std::string utf8CleanLookupWord(const std::string& text) {
   const auto* begin = reinterpret_cast<const unsigned char*>(text.c_str());

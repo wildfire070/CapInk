@@ -68,6 +68,8 @@
 - EPUB reflows no longer reject a chapter before parsing when heap fragmentation leaves the general background-build threshold only slightly short; genuinely large table, font-prewarm, and image allocations remain protected by their own memory checks.
 - EPUB layout now silently retries once with a fresh heap before showing a chapter-memory error or moving through fallback rendering modes.
 - EPUB background indexing now yields to button and touch input, and changing reader settings during indexing no longer risks reading from a closed SD file.
+- Full-section EPUB indexing now lends the inactive framebuffer to large next-chapter builds, preserving heap headroom on X3/X4 devices.
+- A page turn now cancels speculative full-section next-chapter indexing, keeping the reader responsive until the visible Indexing step at the chapter boundary.
 - EPUB clipping selection can now advance through dense one- and two-page chapter endings instead of stopping mid-page.
 - SD-card font preparation now consolidates temporary glyph, kerning, and layout-metric work into one short-lived allocation, preserving more contiguous memory when returning Home after reading or dictionary use.
 - SD-card font layout metric tables now reuse their existing storage during normal updates instead of reallocating the persistent table each time.

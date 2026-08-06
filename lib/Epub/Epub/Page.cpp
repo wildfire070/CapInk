@@ -354,8 +354,8 @@ std::unique_ptr<PageTableFragment> PageTableFragment::deserialize(FsFile& file) 
 
 void Page::render(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                   const bool foregroundBlack) const {
-  renderFilteredPageElements(elements, renderer, fontId, xOffset, yOffset, foregroundBlack,
-                             [](const PageElement&) { return true; });
+  renderText(renderer, fontId, xOffset, yOffset, foregroundBlack);
+  renderImages(renderer, fontId, xOffset, yOffset, foregroundBlack);
 }
 
 void Page::renderText(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
@@ -364,23 +364,24 @@ void Page::renderText(GfxRenderer& renderer, const int fontId, const int xOffset
                              [](const PageElement& element) { return element.getTag() != TAG_PageImage; });
 }
 
-void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset) const {
-  renderFilteredPageElements(elements, renderer, fontId, xOffset, yOffset, true,
+void Page::renderImages(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
+                        const bool foregroundBlack) const {
+  renderFilteredPageElements(elements, renderer, fontId, xOffset, yOffset, foregroundBlack,
                              [](const PageElement& element) { return element.getTag() == TAG_PageImage; });
 }
 
 void Page::renderWithImagePlaceholders(GfxRenderer& renderer, const int fontId, const int xOffset, const int yOffset,
                                        const bool foregroundBlack) const {
+  renderText(renderer, fontId, xOffset, yOffset, foregroundBlack);
   for (const auto& element : elements) {
-    if (element->getTag() == TAG_PageImage) {
-      auto& pageImage = static_cast<PageImage&>(*element);
-      if (pageImage.getImageBlock().needsDecode()) {
-        pageImage.renderPlaceholder(renderer, xOffset, yOffset, foregroundBlack);
-      } else {
-        pageImage.render(renderer, fontId, xOffset, yOffset, foregroundBlack);
-      }
+    if (element->getTag() != TAG_PageImage) {
+      continue;
+    }
+    auto& pageImage = static_cast<PageImage&>(*element);
+    if (pageImage.getImageBlock().needsDecode()) {
+      pageImage.renderPlaceholder(renderer, xOffset, yOffset, foregroundBlack);
     } else {
-      element->render(renderer, fontId, xOffset, yOffset, foregroundBlack);
+      pageImage.render(renderer, fontId, xOffset, yOffset, foregroundBlack);
     }
   }
 }

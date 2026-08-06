@@ -55,8 +55,11 @@ class DictionaryLookupController {
     }
   }
 
+  // The owning activity keeps its cache path alive longer than the controller.
+  // Borrow it here so constructing a low-memory dictionary activity does not
+  // duplicate the path through a throwing std::string allocation.
   DictionaryLookupController(GfxRenderer& renderer, MappedInputManager& mappedInput, Activity& owner,
-                             std::string cachePath = "");
+                             const std::string& cachePath);
   ~DictionaryLookupController();
 
   // Start a lookup. Transitions Idle → LookingUp and notifies the shared
@@ -138,7 +141,7 @@ class DictionaryLookupController {
   GfxRenderer& renderer;
   MappedInputManager& mappedInput;
   Activity& owner;
-  std::string cachePath;
+  const std::string& cachePath;
 
 #if CROSSINK_APP_CAP_TOUCH
   freeink::ui::GfxRendererTarget altFormUiTarget;

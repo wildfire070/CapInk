@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <new>
+#include <string_view>
 
 #include "../home/RecentBookProgress.h"
 #include "../reader/BookStatsView.h"
@@ -366,8 +367,20 @@ bool selectRandomSleepImage(SleepImageMode mode, SleepImageSelection& selection)
   }
 
   const bool allowPng = mode == SleepImageMode::Overlay;
-  std::vector<std::string> files;
-  files.reserve(16);
+  // Keep one reservoir for every candidate and one that excludes recent images.
+  // This avoids holding the whole directory in RAM or opening every BMP just to
+  // parse its header before picking one.
+  std::string nonRecentPath;
+  uint16_t candidateCount = 0;
+  uint16_t selectedIndex = 0;
+  uint16_t nonRecentCount = 0;
+  uint16_t nonRecentIndex = 0;
+  const uint8_t recentWindow = std::min(APP_STATE.recentSleepFill, CrossPointState::SLEEP_RECENT_COUNT);
+  const auto setSleepImagePath = [&](std::string& path, std::string_view filename) {
+    path = sleepDir;
+    path += '/';
+    path.append(filename.data(), filename.size());
+  };
   char name[500];
   for (auto file = dir.openNextFile(); file; file = dir.openNextFile()) {
     if (file.isDirectory()) {
@@ -376,8 +389,8 @@ bool selectRandomSleepImage(SleepImageMode mode, SleepImageSelection& selection)
     }
 
     file.getName(name, sizeof(name));
-    std::string filename(name);
-    if (filename.empty() || filename[0] == '.') {
+    const std::string_view filename(name);
+    if (filename.empty() || filename.front() == '.') {
       file.close();
       continue;
     }
@@ -389,37 +402,43 @@ bool selectRandomSleepImage(SleepImageMode mode, SleepImageSelection& selection)
       continue;
     }
 
-    if (isBmp) {
-      Bitmap bitmap(file);
-      const BmpReaderError parseResult = bitmap.parseHeaders();
-      if (parseResult != BmpReaderError::Ok) {
-        LOG_ERR("SLP", "Skipping invalid BMP sleep image %s/%s: %s", sleepDir.c_str(), filename.c_str(),
-                Bitmap::errorToString(parseResult));
-        file.close();
-        continue;
-      }
+    if (candidateCount == UINT16_MAX) {
+      file.close();
+      continue;
     }
 
-    files.emplace_back(std::move(filename));
+    candidateCount++;
+    const uint16_t candidateIndex = candidateCount - 1;
+    if (random(candidateCount) == 0) {
+      setSleepImagePath(selection.path, filename);
+      selectedIndex = candidateIndex;
+    }
+
+    if (!APP_STATE.isRecentSleep(candidateIndex, recentWindow)) {
+      nonRecentCount++;
+      if (random(nonRecentCount) == 0) {
+        setSleepImagePath(nonRecentPath, filename);
+        nonRecentIndex = candidateIndex;
+      }
+    }
     file.close();
   }
   dir.close();
 
-  if (files.empty()) {
+  if (candidateCount == 0) {
     return false;
   }
 
-  const uint16_t fileCount = static_cast<uint16_t>(std::min(files.size(), static_cast<size_t>(UINT16_MAX)));
-  const uint8_t window =
-      static_cast<uint8_t>(std::min(static_cast<size_t>(APP_STATE.recentSleepFill), files.size() - 1));
-  auto randomFileIndex = static_cast<uint16_t>(random(fileCount));
-  for (uint8_t attempt = 0; attempt < 20 && APP_STATE.isRecentSleep(randomFileIndex, window); attempt++) {
-    randomFileIndex = static_cast<uint16_t>(random(fileCount));
+  if (nonRecentCount > 0) {
+    selection.path = std::move(nonRecentPath);
+    selectedIndex = nonRecentIndex;
   }
 
-  APP_STATE.pushRecentSleep(randomFileIndex);
+  // With fewer images than the recent-history window, every candidate can be
+  // recent. Fall back to the all-candidates reservoir so a custom sleep screen
+  // still renders.
+  APP_STATE.pushRecentSleep(selectedIndex);
   APP_STATE.saveToFile();
-  selection.path = sleepDir + "/" + files[randomFileIndex];
   selection.isPng = FsHelpers::hasPngExtension(selection.path);
   return true;
 }

@@ -21,11 +21,11 @@
 #include "util/Dictionary.h"
 
 DictionaryLookupController::DictionaryLookupController(GfxRenderer& renderer, MappedInputManager& mappedInput,
-                                                       Activity& owner, std::string cachePath)
+                                                       Activity& owner, const std::string& cachePath)
     : renderer(renderer),
       mappedInput(mappedInput),
       owner(owner),
-      cachePath(std::move(cachePath))
+      cachePath(cachePath)
 #if CROSSINK_APP_CAP_TOUCH
       ,
       altFormUiTarget(makeUiTarget(renderer)),

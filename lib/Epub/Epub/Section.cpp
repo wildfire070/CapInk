@@ -431,6 +431,16 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
   } clearActiveBuildTmpPath{activeBuildTmpSectionPath_};
   pageCount = 0;
   if (layoutAbortedForLowMemory) *layoutAbortedForLowMemory = false;
+  if (buildOptions.cancellationObserved) *buildOptions.cancellationObserved = false;
+  const auto cancelBuild = [&buildOptions]() {
+    if (!buildOptions.isCancellationRequested()) {
+      return false;
+    }
+    if (buildOptions.cancellationObserved) {
+      *buildOptions.cancellationObserved = true;
+    }
+    return true;
+  };
   const bool effectiveBionicReadingEnabled = bionicReadingEnabled;
   const bool effectiveGuideReadingEnabled = guideReadingEnabled;
   LOG_DBG("SCT",
@@ -459,6 +469,10 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
       Storage.remove(tmpHtmlPath.c_str());
     }
   };
+  if (cancelBuild()) {
+    LOG_DBG("SCT", "Section build cancelled before HTML inflate: spine=%d", spineIndex);
+    return false;
+  }
   if (!reusedHtml) {
     Storage.mkdir(htmlDir.c_str());
 
@@ -509,6 +523,12 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
     }
   }
   const std::string& parsePath = htmlCached ? htmlPath : tmpHtmlPath;
+
+  if (cancelBuild()) {
+    LOG_DBG("SCT", "Section build cancelled after HTML inflate: spine=%d", spineIndex);
+    cleanupTempHtml();
+    return false;
+  }
 
   if (Storage.exists(tmpSectionPath.c_str())) {
     Storage.remove(tmpSectionPath.c_str());
@@ -610,7 +630,35 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
       embeddedStyle, contentBase, imageBasePath, imageRendering, std::move(tocAnchors), popupFn, cssParser, renderMode,
       buildOptions.isPreview() ? std::string(buildOptions.previewAnchor) : std::string{}, buildOptions.previewMaxPages);
   Hyphenator::setPreferredLanguage(epub->getLanguage());
-  const bool success = visitor.parseAndBuildPages();
+  bool cancelled = false;
+  bool success = false;
+  if (cancelBuild()) {
+    cancelled = true;
+  } else {
+    success = visitor.beginParse();
+  }
+  while (success && !cancelled) {
+    if (cancelBuild()) {
+      visitor.abortParse();
+      cancelled = true;
+      break;
+    }
+    const auto status = visitor.parseStep();
+    if (status == ChapterHtmlSlimParser::ParseStatus::Error) {
+      visitor.abortParse();
+      success = false;
+      break;
+    }
+    if (status == ChapterHtmlSlimParser::ParseStatus::Done) {
+      if (cancelBuild()) {
+        visitor.abortParse();
+        cancelled = true;
+      } else {
+        success = visitor.finishParse();
+      }
+      break;
+    }
+  }
   LOG_DBG("SCT", "Parser done: spine=%d success=%u pages=%u free=%u maxAlloc=%u", spineIndex, success, pageCount,
           ESP.getFreeHeap(), ESP.getMaxAllocHeap());
 
@@ -634,8 +682,12 @@ bool Section::createSectionFile(const ReaderRenderSpec& spec, const std::functio
     }
   }
 
-  if (!success || pageCompletionFailed) {
-    LOG_ERR("SCT", "Failed to parse XML and build pages");
+  if (!success || pageCompletionFailed || cancelled) {
+    if (cancelled) {
+      LOG_DBG("SCT", "Section build cancelled during parse: spine=%d", spineIndex);
+    } else {
+      LOG_ERR("SCT", "Failed to parse XML and build pages");
+    }
     // Explicitly close() file before calling Storage.remove()
     file.close();
     Storage.remove(tmpSectionPath.c_str());

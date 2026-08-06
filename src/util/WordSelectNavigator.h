@@ -4,6 +4,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -77,10 +78,17 @@ class WordSelectNavigator {
   void load(std::vector<WordInfo> words, std::vector<Row> rows, std::string textPool,
             bool consumeInitialConfirm = false);
 
+  // Load a working set owned by the calling activity. The activity must keep
+  // all three buffers alive until releaseWorkingSet() or navigator destruction.
+  // This path lets constrained callers use fallible fixed-capacity storage
+  // instead of std::vector/std::string growth.
+  void loadView(WordInfo* words, size_t wordCount, Row* rows, size_t rowCount, const char* textPool,
+                bool consumeInitialConfirm = false);
+
   // Access null-terminated display text from the pool.
-  const char* getDisplay(const WordInfo& w) const { return textPool.data() + w.textOffset; }
+  const char* getDisplay(const WordInfo& w) const { return textPool + w.textOffset; }
   // Access null-terminated lookup text from the pool.
-  const char* getLookup(const WordInfo& w) const { return textPool.data() + w.lookupOffset; }
+  const char* getLookup(const WordInfo& w) const { return textPool + w.lookupOffset; }
 
   // Organise a flat word list into rows by Y coordinate (2px tolerance).
   // Sets each word's row field and populates the rows vector.
@@ -253,9 +261,30 @@ class WordSelectNavigator {
   void reset();
 
  private:
-  std::vector<WordInfo> words;
-  std::vector<Row> rows;
-  std::string textPool;
+  template <typename T>
+  class ArrayView {
+   public:
+    void reset(T* data = nullptr, const size_t size = 0) {
+      data_ = data;
+      size_ = size;
+    }
+    bool empty() const { return size_ == 0; }
+    size_t size() const { return size_; }
+    T& operator[](const size_t index) const { return data_[index]; }
+
+   private:
+    T* data_ = nullptr;
+    size_t size_ = 0;
+  };
+
+  // Definition selection still uses the legacy owning containers. Reader-page
+  // selection uses loadView() with activity-owned fallible buffers.
+  std::vector<WordInfo> ownedWords;
+  std::vector<Row> ownedRows;
+  std::string ownedTextPool;
+  ArrayView<WordInfo> words;
+  ArrayView<Row> rows;
+  const char* textPool = nullptr;
   int currentRow = 0;
   int currentWordInRow = 0;
   bool inMultiSelectMode = false;

@@ -256,6 +256,10 @@ class EpubReaderActivity final : public Activity {
   // Input should win the next RenderLock race. Keep the incremental parser alive,
   // but do not start another background chunk until the requested render begins.
   std::atomic<bool> backgroundBuildYieldForInput{false};
+  // Full-section next-chapter prefetch is speculative. A forward page turn may
+  // stop it, but the visible build at the chapter boundary remains full-section.
+  std::atomic<bool> silentPrefetchBuildActive{false};
+  std::atomic<bool> silentPrefetchCancelRequested{false};
   std::atomic<bool> sectionBuildCancelRequested{false};
   std::atomic<bool> goHomeAfterBuildCancel{false};
 

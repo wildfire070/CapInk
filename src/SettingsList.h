@@ -272,8 +272,15 @@ inline SettingInfo buildDictionaryFontSizeSetting(const SdCardFontRegistry* regi
   s.enumStringValues.push_back(I18N.get(StrId::STR_USE_READER_FONT_SIZE));
   s.enumRawValues.push_back(0);
 
-  if (!registry || SETTINGS.dictionarySdFontFamilyName[0] == '\0') return s;
-  const auto* family = registry->findFamily(SETTINGS.dictionarySdFontFamilyName);
+  if (!registry) return s;
+  // With no dedicated dictionary family, a non-zero dictionary size applies
+  // to the reader's SD-card family. Built-in reader fonts have no selectable
+  // files, so they deliberately retain just the "use reader size" entry.
+  const char* familyName = SETTINGS.dictionarySdFontFamilyName[0] != '\0'
+                               ? SETTINGS.dictionarySdFontFamilyName
+                               : SETTINGS.sdFontFamilyName;
+  if (familyName[0] == '\0') return s;
+  const auto* family = registry->findFamily(familyName);
   if (!family) return s;
 
   const auto sizes = family->availableSizes();

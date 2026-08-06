@@ -24,7 +24,7 @@ class DictionaryWordSelectActivity final : public Activity {
   // path (no status bar, no auto-turn label visible during word-select).
   explicit DictionaryWordSelectActivity(
       GfxRenderer& renderer, MappedInputManager& mappedInput, std::unique_ptr<Page> page, int marginLeft, int marginTop,
-      const std::string& cachePath, const std::string& nextPageFirstWord = "", bool framebufferContainsPage = false,
+      std::string cachePath, std::string nextPageFirstWord = "", bool framebufferContainsPage = false,
       int reservedBottomHeight = 0, int initialTouchX = -1, int initialTouchY = -1, bool autoLookupInitialWord = false,
       const char* dictionaryFontFamilyName = nullptr, uint8_t dictionaryFontPointSize = 0,
       void* readerContext = nullptr, ReaderBackgroundRenderFn readerBackgroundRender = nullptr,
@@ -33,9 +33,12 @@ class DictionaryWordSelectActivity final : public Activity {
         page(std::move(page)),
         marginLeft(marginLeft),
         marginTop(marginTop),
-        cachePath(cachePath),
-        nextPageFirstWord(nextPageFirstWord),
-        controller(renderer, mappedInput, *this, cachePath),
+        cachePath(std::move(cachePath)),
+        nextPageFirstWord(std::move(nextPageFirstWord)),
+        // DictionaryLookupController borrows this activity-owned path.  Qualify
+        // the member so it cannot instead bind to the constructor parameter,
+        // which is destroyed as soon as construction completes.
+        controller(renderer, mappedInput, *this, this->cachePath),
         framebufferContainsPage_(framebufferContainsPage),
         reservedBottomHeight_(reservedBottomHeight),
         initialTouchX_(initialTouchX),
@@ -63,6 +66,35 @@ class DictionaryWordSelectActivity final : public Activity {
   std::string cachePath;
   std::string nextPageFirstWord;
 
+  struct WorkingSet {
+    std::unique_ptr<WordSelectNavigator::WordInfo[]> words;
+    std::unique_ptr<WordSelectNavigator::Row[]> rows;
+    std::unique_ptr<char[]> textPool;
+    std::unique_ptr<char[]> measurementScratch;
+    size_t wordCapacity = 0;
+    size_t wordCount = 0;
+    size_t rowCapacity = 0;
+    size_t rowCount = 0;
+    size_t textCapacity = 0;
+    size_t textUsed = 0;
+    size_t measurementScratchCapacity = 0;
+
+    void clear() {
+      words.reset();
+      rows.reset();
+      textPool.reset();
+      measurementScratch.reset();
+      wordCapacity = 0;
+      wordCount = 0;
+      rowCapacity = 0;
+      rowCount = 0;
+      textCapacity = 0;
+      textUsed = 0;
+      measurementScratchCapacity = 0;
+    }
+  };
+
+  WorkingSet workingSet_;
   WordSelectNavigator navigator;
   // Shared with the stacked definition activity. It is fixed storage inside
   // this activity, so it adds no allocator churn and replaces two simultaneous
@@ -105,6 +137,7 @@ class DictionaryWordSelectActivity final : public Activity {
   ReaderBackgroundRenderFn readerBackgroundRender_ = nullptr;
   ReaderPageReloadFn readerPageReload_ = nullptr;
   bool workingSetSuspended_ = false;
+  bool workingSetMemoryError_ = false;
   int suspendedSelectionX_ = -1;
   int suspendedSelectionY_ = -1;
 
@@ -141,8 +174,11 @@ class DictionaryWordSelectActivity final : public Activity {
   void suspendWorkingSet();
   bool restoreWorkingSet();
 
-  void extractWords(std::vector<WordSelectNavigator::WordInfo>& words, std::vector<WordSelectNavigator::Row>& rows,
-                    std::string& textPool);
-  void mergeHyphenatedWords(std::vector<WordSelectNavigator::WordInfo>& words,
-                            std::vector<WordSelectNavigator::Row>& rows, std::string& textPool);
+  bool allocateWorkingSet();
+  bool extractWords();
+  bool mergeHyphenatedWords();
+  bool appendText(const char* text, size_t length, uint16_t& offset);
+  bool appendMergedText(const char* first, size_t firstLength, const char* second, size_t secondLength,
+                        uint16_t& offset);
+  bool appendWord(WordSelectNavigator::WordInfo word);
 };
