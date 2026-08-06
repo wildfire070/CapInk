@@ -664,6 +664,8 @@ void MinimalTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, cons
       renderer.drawRoundedRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, 1, kButtonCornerRadius, true, true,
                                false, false, true);
     } else {
+      // Clear the previous full-sized hint before drawing the inactive marker.
+      renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
       const int smallButtonY = pageHeight - smallButtonHeight;
       renderer.fillRoundedRect(x, smallButtonY, buttonWidth, smallButtonHeight, kButtonCornerRadius, Color::White);
       renderer.drawRoundedRect(x, smallButtonY, buttonWidth, smallButtonHeight, 1, kButtonCornerRadius, true, true,

@@ -1142,7 +1142,7 @@ void WifiSelectionActivity::render(RenderLock&&) {
       break;  // Handled by early return above
   }
 
-  renderer.displayBuffer();
+  renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
 }
 
 void WifiSelectionActivity::listScreen(UiApp::ScreenType& screen, void* user) {

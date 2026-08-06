@@ -59,6 +59,10 @@
 
 ### Fixed
 
+- X4 network workflows now use a clean refresh when replacing whole screens, preventing prior content from remaining visible in File Transfer, Wi-Fi, Sync Progress, OPDS, updates, and nearby-transfer views.
+- Home and Recent Books no longer repeatedly try to generate a cover thumbnail for EPUBs that do not include a cover.
+- Manage Fonts now reports an installed-font scan memory error instead of restarting when a fragmented X3/X4 heap cannot enumerate a font directory.
+- Saved Wi-Fi networks now remain available when managing them from the File Transfer web page after a restart.
 - KOReader Sync now resolves saved text offsets from completed EPUB caches instead of falling back to less precise page estimates.
 - Power-button wake hold timing no longer varies with SD-card initialization time.
 - EPUB reflows no longer reject a chapter before parsing when heap fragmentation leaves the general background-build threshold only slightly short; genuinely large table, font-prewarm, and image allocations remain protected by their own memory checks.

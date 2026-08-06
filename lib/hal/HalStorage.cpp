@@ -5,10 +5,11 @@
 #include <FS.h>  // need to be included before SdFat.h for compatibility with FS.h's File class
 #include <HalClock.h>
 #include <Logging.h>
-#include <Memory.h>
 #include <SDCardManager.h>
 
 #include <cassert>
+#include <cstdlib>
+#include <new>
 
 #include "HalSpiBus.h"
 
@@ -172,9 +173,23 @@ class HalFile::Impl {
   FsFile file;
 };
 
+void HalFile::ImplDeleter::operator()(Impl* const impl) const {
+  if (!impl) return;
+  impl->~Impl();
+  std::free(impl);
+}
+
+void* HalFile::allocateImplStorage() {
+  // The ESP32 build disables exceptions, so `new (std::nothrow)` can still
+  // terminate through libstdc++ when the allocation cannot be satisfied.
+  // malloc gives this storage wrapper the recoverable failure contract callers
+  // expect while preserving FsFile's value semantics.
+  return std::malloc(sizeof(Impl));
+}
+
 HalFile::HalFile() = default;
 
-HalFile::HalFile(std::unique_ptr<Impl> impl) : impl(std::move(impl)) {}
+HalFile::HalFile(ImplPtr impl) : impl(std::move(impl)) {}
 
 HalFile::~HalFile() { close(); }
 
@@ -184,6 +199,8 @@ HalFile& HalFile::operator=(HalFile&& other) {
   if (this == &other) return *this;
   close();
   impl = std::move(other.impl);
+  allocationFailed_ = other.allocationFailed_;
+  other.allocationFailed_ = false;
   return *this;
 }
 
@@ -196,13 +213,16 @@ HalFile HalStorage::open(const char* path, const oflag_t oflag) {
   if (!fsFile) {
     return HalFile();
   }
-  auto impl = makeUniqueNoThrow<HalFile::Impl>(std::move(fsFile));
+  void* const storage = HalFile::allocateImplStorage();
+  HalFile::ImplPtr impl(storage ? ::new (storage) HalFile::Impl(std::move(fsFile)) : nullptr);
   if (!impl) {
     LOG_ERR("SD", "OOM: HalFile wrapper for %s (%u free, %u max alloc)", path, ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
     StorageLock lock;
     fsFile.close();
-    return HalFile();
+    HalFile failed;
+    failed.allocationFailed_ = true;
+    return failed;
   }
   return HalFile(std::move(impl));
 }
@@ -229,7 +249,8 @@ bool HalStorage::openFileForRead(const char* moduleName, const char* path, HalFi
   if (!ok) {
     return false;
   }
-  auto impl = makeUniqueNoThrow<HalFile::Impl>(std::move(fsFile));
+  void* const storage = HalFile::allocateImplStorage();
+  HalFile::ImplPtr impl(storage ? ::new (storage) HalFile::Impl(std::move(fsFile)) : nullptr);
   if (!impl) {
     LOG_ERR(moduleName, "OOM: HalFile read wrapper for %s (%u free, %u max alloc)", path, ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
@@ -260,7 +281,8 @@ bool HalStorage::openFileForWrite(const char* moduleName, const char* path, HalF
   if (!ok) {
     return false;
   }
-  auto impl = makeUniqueNoThrow<HalFile::Impl>(std::move(fsFile));
+  void* const storage = HalFile::allocateImplStorage();
+  HalFile::ImplPtr impl(storage ? ::new (storage) HalFile::Impl(std::move(fsFile)) : nullptr);
   if (!impl) {
     LOG_ERR(moduleName, "OOM: HalFile write wrapper for %s (%u free, %u max alloc)", path, ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
@@ -357,17 +379,21 @@ bool HalFile::close() {
   HalStorage::StorageLock lock;
   const bool ok = impl->file.close();
   impl.reset();
+  allocationFailed_ = false;
   return ok;
 }
 HalFile HalFile::openNextFile() {
+  allocationFailed_ = false;
   HalStorage::StorageLock lock;
   assert(impl != nullptr);
   auto fsFile = impl->file.openNextFile();
   if (!fsFile) {
     return HalFile();
   }
-  auto childImpl = makeUniqueNoThrow<Impl>(std::move(fsFile));
+  void* const storage = allocateImplStorage();
+  ImplPtr childImpl(storage ? ::new (storage) Impl(std::move(fsFile)) : nullptr);
   if (!childImpl) {
+    allocationFailed_ = true;
     LOG_ERR("SD", "OOM: HalFile directory entry wrapper (%u free, %u max alloc)", ESP.getFreeHeap(),
             ESP.getMaxAllocHeap());
     fsFile.close();

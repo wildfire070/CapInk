@@ -407,6 +407,9 @@ void RecentBooksActivity::buildListScreen(UiApp::ScreenType& screen) {
   props.selectedIndex = static_cast<int16_t>(selectorIndex);
   props.action = ACTION_ROW;
   props.inputMask = fui::InputTouch;  // physical buttons stay in loop()
+  props.iconSize = 28;
+  props.labelText = screen.theme().bodyText;
+  props.labelText.bold = true;
   const fui::Rect listBounds = screen.body();
   listTop = listBounds.y;
   listBottom = listBounds.bottom();

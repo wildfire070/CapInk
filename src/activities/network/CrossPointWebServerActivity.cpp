@@ -459,7 +459,7 @@ void CrossPointWebServerActivity::render(RenderLock&&) {
       const auto top = (pageHeight - height) / 2;
       renderer.drawCenteredText(UI_10_FONT_ID, top, tr(STR_STARTING_HOTSPOT));
     }
-    renderer.displayBuffer();
+    renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
   }
 }
 

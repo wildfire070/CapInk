@@ -170,7 +170,7 @@ The history screen shows the 50 most recent entries. The on-disk history is appe
 
 Dictionary definitions use the active reader font and size by default. If at least one dictionary is installed, you can set the default dictionary font and size in **Settings > Reader > Font Options**. Books inherit those defaults unless you choose a different font or size in **Book Options > Font Options**. Choose **Use Global** in Book Options to return a book to the global defaults. If no custom dictionary font is selected, definitions use the active reader font and size. A saved size with no matching file uses the closest available size from the dictionary family.
 
-Only one SD-card font family is loaded at a time: CrossInk temporarily swaps to the dictionary font while a definition is open, then restores the reader font when you close it. If the selected dictionary font is missing, the definition falls back to the reader font but keeps the selection, so it resumes automatically if you reinstall the family.
+Only one SD-card font family is loaded at a time: CrossInk temporarily swaps to the dictionary font while a definition is open, then restores the reader font when you close it. If a book's selected dictionary font is missing, the definition temporarily uses the global dictionary font. If that is also unavailable, it falls back to the reader font. The per-book selection is kept so it resumes automatically if you reinstall the family.
 
 Built-in fonts keep the glyphs they contain and approximate only unsupported pronunciation symbols. If you see a filled diamond, choose an SD-card font that includes that character.
 

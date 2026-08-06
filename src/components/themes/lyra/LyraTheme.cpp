@@ -409,7 +409,9 @@ void LyraTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
       renderer.drawRoundedRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, 1, cornerRadius, true, true, false,
                                false, true);
     } else {
-      // Draw the filled background and border for a SMALL-sized button
+      // Clear the previous full-sized hint before drawing the inactive marker.
+      // Dictionary chaining can otherwise leave its old label visible.
+      renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
       const int smallButtonY = pageHeight - smallButtonHeight;
       renderer.fillRoundedRect(x, smallButtonY, buttonWidth, smallButtonHeight, cornerRadius, Color::White);
       renderer.drawRoundedRect(x, smallButtonY, buttonWidth, smallButtonHeight, 1, cornerRadius, true, true, false,

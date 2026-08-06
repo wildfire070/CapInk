@@ -11,6 +11,7 @@
 
 #include "OpdsServerStore.h"
 #include "activities/Activity.h"
+#include "activities/ScreenTransitionRefresh.h"
 #include "util/ButtonNavigator.h"
 
 /**
@@ -37,6 +38,7 @@ class OpdsBookBrowserActivity final : public Activity {
 
   ButtonNavigator buttonNavigator;
   BrowserState state = BrowserState::LOADING;
+  ScreenTransitionRefresh screenTransitionRefresh;
   std::unique_ptr<OpdsEntry[]> entries;
   size_t entryCount = 0;
   std::vector<std::string> navigationHistory;

@@ -35,16 +35,6 @@ static constexpr int kDictionarySwitchTouchHeight = 56;
 
 class DictionaryDefinitionActivity;
 
-static bool dictionaryPageButtonTriggered(MappedInputManager& mappedInput, bool previous) {
-  const bool usePress = SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_OFF;
-  const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
-  const MappedInputManager::Button button =
-      sideLayout == CrossPointSettings::NEXT_NEXT
-          ? (previous ? MappedInputManager::Button::Up : MappedInputManager::Button::Down)
-          : (previous ? MappedInputManager::Button::PageBack : MappedInputManager::Button::PageForward);
-  return usePress ? mappedInput.wasPressed(button) : mappedInput.wasReleased(button);
-}
-
 static std::string dictionaryNameFromPath(const std::string& path) {
   const size_t stemSlash = path.rfind('/');
   if (stemSlash == std::string::npos) return path;
@@ -411,7 +401,6 @@ void DictionaryDefinitionActivity::reflowForDefinitionFontChange() {
 void DictionaryDefinitionActivity::redrawModalBackground() {
   if (!hasModalBackground() || !modalBackgroundNeedsRedraw_) return;
 
-  const int previousFontId = definitionFontId_;
   if (definitionFontSource_ == DefinitionFontSource::Dictionary) {
     sdFontSystem.restoreReaderFont(renderer);
     backgroundRender_(backgroundContext_);
@@ -423,9 +412,11 @@ void DictionaryDefinitionActivity::redrawModalBackground() {
     if (renderer.isSdCardFont(definitionFontId_)) {
       renderer.releaseSdCardFontForLowMemory(definitionFontId_, /*preserveAdvanceTable=*/true);
     }
-    if (definitionFontId_ != previousFontId) {
-      reflowForDefinitionFontChange();
-    }
+    // SD font IDs are deterministic, so reloading the same family returns the
+    // same ID even though its advance table was discarded with the old font.
+    // Reflow every restored dictionary font to rebuild those metrics before
+    // drawing; otherwise lines wrapped with stale/narrow widths can overflow.
+    reflowForDefinitionFontChange();
   } else {
     backgroundRender_(backgroundContext_);
   }
@@ -1256,8 +1247,10 @@ void DictionaryDefinitionActivity::loop() {
 #endif
 
   const auto swipe = mappedInput.wasSwipe();
-  const bool prevPage = dictionaryPageButtonTriggered(mappedInput, true) || swipe == MappedInputManager::SwipeDir::Down;
-  const bool nextPage = dictionaryPageButtonTriggered(mappedInput, false) || swipe == MappedInputManager::SwipeDir::Up;
+  const bool prevPage =
+      DictUtils::dictionaryPageButtonTriggered(mappedInput, true) || swipe == MappedInputManager::SwipeDir::Down;
+  const bool nextPage =
+      DictUtils::dictionaryPageButtonTriggered(mappedInput, false) || swipe == MappedInputManager::SwipeDir::Up;
 
   if (prevPage && currentPage > 0) {
     currentPage--;

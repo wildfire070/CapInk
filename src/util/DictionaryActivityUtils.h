@@ -3,6 +3,7 @@
 #include <I18n.h>
 #include <MappedInputManager.h>
 
+#include "CrossPointSettings.h"
 #include "activities/Activity.h"
 #include "components/UITheme.h"
 #include "util/WordSelectNavigator.h"
@@ -15,6 +16,19 @@ inline void cancelAndFinish(Activity& act) {
   r.isCancelled = true;
   act.setResult(std::move(r));
   act.finish();
+}
+
+// Dictionary screens normally follow the configured reader side-button layout.
+// Next/Next has no PageBack binding, so reserve Up/Left for previous navigation
+// and keep Down/Right as next.
+inline bool dictionaryPageButtonTriggered(MappedInputManager& input, const bool previous) {
+  const bool usePress = SETTINGS.sideButtonLongPress == CrossPointSettings::SIDE_LONG_PRESS::SIDE_LONG_OFF;
+  const auto sideLayout = static_cast<CrossPointSettings::SIDE_BUTTON_LAYOUT>(SETTINGS.sideButtonLayout);
+  const MappedInputManager::Button button =
+      sideLayout == CrossPointSettings::NEXT_NEXT
+          ? (previous ? MappedInputManager::Button::Up : MappedInputManager::Button::Down)
+          : (previous ? MappedInputManager::Button::PageBack : MappedInputManager::Button::PageForward);
+  return usePress ? input.wasPressed(button) : input.wasReleased(button);
 }
 
 inline void drawWordSelectButtonHints(GfxRenderer& renderer, const MappedInputManager& mappedInput,

@@ -426,7 +426,7 @@ void OpdsBookBrowserActivity::render(RenderLock&&) {
   uiReady = false;
   app.render();
   uiReady = true;
-  renderer.displayBuffer();
+  renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
 }
 
 void OpdsBookBrowserActivity::showLoadingBeforeFetch() {

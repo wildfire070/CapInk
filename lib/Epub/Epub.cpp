@@ -904,6 +904,10 @@ const std::string& Epub::getLanguage() const {
   return bookMetadataCache->coreMetadata.language;
 }
 
+bool Epub::hasCoverImage() const {
+  return bookMetadataCache && bookMetadataCache->isLoaded() && !bookMetadataCache->coreMetadata.coverItemHref.empty();
+}
+
 std::string Epub::getCoverBmpPath(bool cropped) const {
   const auto coverFileName = std::string("cover") + (cropped ? "_crop" : "");
   return cachePath + "/" + coverFileName + ".bmp";

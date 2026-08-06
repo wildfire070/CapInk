@@ -181,7 +181,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
 
   if (state_ == State::SHOWING_RESULT) {
     renderComparison();
-    renderer.displayBuffer();
+    renderer.displayBuffer(screenTransitionRefresh_.modeFor(static_cast<uint8_t>(state_)));
     return;
   }
 
@@ -227,7 +227,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
       const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_NEARBY_POSITION_SHARE_BUTTON), "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     }
-    renderer.displayBuffer();
+    renderer.displayBuffer(screenTransitionRefresh_.modeFor(static_cast<uint8_t>(state_)));
     return;
   }
 
@@ -239,7 +239,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
   }
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
-  renderer.displayBuffer();
+  renderer.displayBuffer(screenTransitionRefresh_.modeFor(static_cast<uint8_t>(state_)));
 }
 
 void NearbyBookPositionSyncActivity::enqueueEspNowPacket(const uint8_t*, const uint8_t*, int) {}
@@ -1243,7 +1243,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
 
   if (state_ == State::SHOWING_RESULT) {
     renderComparison();
-    renderer.displayBuffer();
+    renderer.displayBuffer(screenTransitionRefresh_.modeFor(static_cast<uint8_t>(state_)));
     return;
   }
 
@@ -1289,7 +1289,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
       const auto labels = mappedInput.mapLabels(tr(STR_BACK), tr(STR_NEARBY_POSITION_SHARE_BUTTON), "", "");
       GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
     }
-    renderer.displayBuffer();
+    renderer.displayBuffer(screenTransitionRefresh_.modeFor(static_cast<uint8_t>(state_)));
     return;
   }
 
@@ -1301,7 +1301,7 @@ void NearbyBookPositionSyncActivity::render(RenderLock&&) {
   }
   const auto labels = mappedInput.mapLabels(tr(STR_BACK), "", "", "");
   GUI.drawButtonHints(renderer, labels.btn1, labels.btn2, labels.btn3, labels.btn4, true);
-  renderer.displayBuffer();
+  renderer.displayBuffer(screenTransitionRefresh_.modeFor(static_cast<uint8_t>(state_)));
 }
 
 void NearbyBookPositionSyncActivity::renderReady(const std::string& primary, const std::string& detailPrimary,

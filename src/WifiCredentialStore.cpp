@@ -78,6 +78,10 @@ bool WifiCredentialStore::fromJson(JsonVariantConst doc) {
 }
 
 bool WifiCredentialStore::loadFromFile() {
+  credentials.clear();
+  lastConnectedSsid.clear();
+  loaded_ = true;
+
   const bool hasStoreFile = Storage.exists(getFilePath());
   if (PersistableStore<WifiCredentialStore>::loadFromFile()) {
     return true;
@@ -96,6 +100,11 @@ bool WifiCredentialStore::loadFromFile() {
   }
 
   return false;
+}
+
+void WifiCredentialStore::ensureLoaded() const {
+  if (loaded_) return;
+  const_cast<WifiCredentialStore*>(this)->loadFromFile();
 }
 
 bool WifiCredentialStore::loadFromBinaryFile() {
@@ -134,6 +143,8 @@ bool WifiCredentialStore::loadFromBinaryFile() {
 }
 
 bool WifiCredentialStore::addCredential(const std::string& ssid, const std::string& password) {
+  ensureLoaded();
+
   // Check if this SSID already exists and update it
   const auto cred = find_if(credentials.begin(), credentials.end(),
                             [&ssid](const WifiCredential& cred) { return cred.ssid == ssid; });
@@ -154,6 +165,8 @@ bool WifiCredentialStore::addCredential(const std::string& ssid, const std::stri
 }
 
 bool WifiCredentialStore::removeCredential(const std::string& ssid) {
+  ensureLoaded();
+
   const auto cred = find_if(credentials.begin(), credentials.end(),
                             [&ssid](const WifiCredential& cred) { return cred.ssid == ssid; });
   if (cred != credentials.end()) {
@@ -167,6 +180,8 @@ bool WifiCredentialStore::removeCredential(const std::string& ssid) {
 }
 
 const WifiCredential* WifiCredentialStore::findCredential(const std::string& ssid) const {
+  ensureLoaded();
+
   const auto cred = find_if(credentials.begin(), credentials.end(),
                             [&ssid](const WifiCredential& cred) { return cred.ssid == ssid; });
 
@@ -180,15 +195,22 @@ const WifiCredential* WifiCredentialStore::findCredential(const std::string& ssi
 bool WifiCredentialStore::hasSavedCredential(const std::string& ssid) const { return findCredential(ssid) != nullptr; }
 
 void WifiCredentialStore::setLastConnectedSsid(const std::string& ssid) {
+  ensureLoaded();
+
   if (lastConnectedSsid != ssid) {
     lastConnectedSsid = ssid;
     saveToFile();
   }
 }
 
-const std::string& WifiCredentialStore::getLastConnectedSsid() const { return lastConnectedSsid; }
+const std::string& WifiCredentialStore::getLastConnectedSsid() const {
+  ensureLoaded();
+  return lastConnectedSsid;
+}
 
 void WifiCredentialStore::clearLastConnectedSsid() {
+  ensureLoaded();
+
   if (!lastConnectedSsid.empty()) {
     lastConnectedSsid.clear();
     saveToFile();
@@ -196,6 +218,8 @@ void WifiCredentialStore::clearLastConnectedSsid() {
 }
 
 void WifiCredentialStore::clearAll() {
+  ensureLoaded();
+
   credentials.clear();
   lastConnectedSsid.clear();
   saveToFile();

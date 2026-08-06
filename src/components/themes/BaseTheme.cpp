@@ -187,13 +187,16 @@ void BaseTheme::drawButtonHints(GfxRenderer& renderer, const char* btn1, const c
   const char* labels[] = {btn1, btn2, btn3, btn4};
 
   for (int i = 0; i < 4; i++) {
-    // Only draw if the label is non-empty
+    const int x = buttonPositions[i];
     if (labels[i] != nullptr && labels[i][0] != '\0') {
-      const int x = buttonPositions[i];
       TouchRegistry::getInstance().add(Rect{x, pageHeight - buttonY, buttonWidth, buttonHeight}, i,
                                        TouchRegistry::Button);
       renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
       renderer.drawRect(x, pageHeight - buttonY, buttonWidth, buttonHeight);
+    } else {
+      // Fast refreshes retain the previous hint pixels. Clear a label that was
+      // present on the last screen before leaving this button slot inactive.
+      renderer.fillRect(x, pageHeight - buttonY, buttonWidth, buttonHeight, false);
     }
   }
 

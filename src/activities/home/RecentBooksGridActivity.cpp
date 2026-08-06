@@ -136,10 +136,16 @@ int moveVerticalInGrid(const int currentIndex, const int totalItems, const int c
   return std::max(previousPageStart, previousPageCandidate);
 }
 
-void updateRecentBookCoverPath(const RecentBook& book, const std::string& coverBmpPath) {
-  if (!RECENT_BOOKS.updateBook(book.path, book.title, book.author, coverBmpPath)) {
+void updateRecentBookCover(const RecentBook& book) {
+  if (!RECENT_BOOKS.updateBook(book.path, book.title, book.author, book.coverBmpPath, book.coverState)) {
     LOG_ERR("RBGA", "failed to update recent book metadata: %s", book.path.c_str());
   }
+}
+
+void markCoverMissing(RecentBook& book) {
+  book.coverBmpPath.clear();
+  book.coverState = RecentBook::CoverState::Missing;
+  updateRecentBookCover(book);
 }
 
 bool hasThumbnailPlaceholder(const std::string& coverBmpPath) {
@@ -194,7 +200,7 @@ std::string getReusableCoverPath(const RecentBook& book) {
 }
 
 void ensureReusableCoverPath(RecentBook& book) {
-  if (hasThumbnailPlaceholder(book.coverBmpPath)) {
+  if (book.coverState == RecentBook::CoverState::Missing || hasThumbnailPlaceholder(book.coverBmpPath)) {
     return;
   }
 
@@ -204,7 +210,7 @@ void ensureReusableCoverPath(RecentBook& book) {
   }
 
   book.coverBmpPath = reusablePath;
-  updateRecentBookCoverPath(book, reusablePath);
+  updateRecentBookCover(book);
 }
 }  // namespace
 
@@ -238,8 +244,7 @@ void RecentBooksGridActivity::loadPageCovers(int pageStart) {
     RecentBook& book = recentBooks[i].book;
     ensureReusableCoverPath(book);
     if (book.coverBmpPath.empty()) {
-      needsGeneration = true;
-      break;
+      continue;
     }
     const std::string thumbPath = UITheme::getCoverThumbPath(book.coverBmpPath, COVER_WIDTH, COVER_HEIGHT);
     if (needsCoverThumbGeneration(book, thumbPath)) {
@@ -259,8 +264,11 @@ void RecentBooksGridActivity::loadPageCovers(int pageStart) {
 
   for (int i = pageStart; i < pageEnd; ++i) {
     RecentBook& book = recentBooks[i].book;
-    const std::string coverPath =
-        book.coverBmpPath.empty() ? "" : UITheme::getCoverThumbPath(book.coverBmpPath, COVER_WIDTH, COVER_HEIGHT);
+    if (book.coverBmpPath.empty()) {
+      processedCount++;
+      continue;
+    }
+    const std::string coverPath = UITheme::getCoverThumbPath(book.coverBmpPath, COVER_WIDTH, COVER_HEIGHT);
     if (needsCoverThumbGeneration(book, coverPath)) {
       if (FsHelpers::hasEpubExtension(book.path)) {
         Epub epub(book.path, "/.crosspoint");
@@ -273,10 +281,9 @@ void RecentBooksGridActivity::loadPageCovers(int pageStart) {
           if (epub.generateThumbBmp(COVER_WIDTH, COVER_HEIGHT, &renderer, SETTINGS.getReaderFontId())) {
             const std::string reusablePath = epub.getThumbBmpPath();
             book.coverBmpPath = reusablePath;
-            updateRecentBookCoverPath(book, reusablePath);
-          } else {
-            updateRecentBookCoverPath(book, "");
-            book.coverBmpPath = "";
+            updateRecentBookCover(book);
+          } else if (!epub.hasCoverImage()) {
+            markCoverMissing(book);
           }
         }
       } else if (FsHelpers::hasXtcExtension(book.path)) {
@@ -290,10 +297,7 @@ void RecentBooksGridActivity::loadPageCovers(int pageStart) {
           if (xtc.generateThumbBmp(COVER_WIDTH, COVER_HEIGHT)) {
             const std::string reusablePath = xtc.getThumbBmpPath();
             book.coverBmpPath = reusablePath;
-            updateRecentBookCoverPath(book, reusablePath);
-          } else {
-            updateRecentBookCoverPath(book, "");
-            book.coverBmpPath = "";
+            updateRecentBookCover(book);
           }
         }
       }

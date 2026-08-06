@@ -195,7 +195,7 @@ void OtaUpdateActivity::render(RenderLock&&) {
     renderer.drawCenteredText(UI_10_FONT_ID, top + height + metrics.verticalSpacing, tr(STR_POWER_ON_HINT));
   }
 
-  renderer.displayBuffer();
+  renderer.displayBuffer(screenTransitionRefresh.modeFor(static_cast<uint8_t>(state)));
 }
 
 void OtaUpdateActivity::runUpdateInstall() {

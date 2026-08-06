@@ -90,9 +90,12 @@ bool SdCardFontRegistry::parseFilename(const char* filename, uint8_t& size, uint
   return true;
 }
 
-void SdCardFontRegistry::scanDirectory(const char* dirPath, SdCardFontFamilyInfo& family) {
+bool SdCardFontRegistry::scanDirectory(const char* dirPath, SdCardFontFamilyInfo& family) {
   HalFile dir = Storage.open(dirPath);
-  if (!dir || !dir.isDirectory()) return;
+  if (!dir || !dir.isDirectory()) {
+    if (dir.allocationFailed()) LOG_ERR("SDREG", "Out of memory opening font directory: %s", dirPath);
+    return !dir.allocationFailed();
+  }
 
   char nameBuffer[128];
   while (true) {
@@ -134,20 +137,30 @@ void SdCardFontRegistry::scanDirectory(const char* dirPath, SdCardFontFamilyInfo
     info.style = style;
     family.files.push_back(std::move(info));
   }
+
+  if (dir.allocationFailed()) {
+    LOG_ERR("SDREG", "Out of memory scanning font directory: %s", dirPath);
+    return false;
+  }
+  return true;
 }
 
 // Scan a single root (e.g. "/.fonts") and append its families to `out`.
 // Skips families whose names already exist in `out` (de-duplicates between
 // the hidden and visible roots — first scan wins).
-void SdCardFontRegistry::scanRoot(const char* rootPath, std::vector<SdCardFontFamilyInfo>& out) {
+bool SdCardFontRegistry::scanRoot(const char* rootPath, std::vector<SdCardFontFamilyInfo>& out) {
   HalFile root = Storage.open(rootPath);
   if (!root) {
+    if (root.allocationFailed()) {
+      LOG_ERR("SDREG", "Out of memory opening font root: %s", rootPath);
+      return false;
+    }
     LOG_DBG("SDREG", "Fonts directory not found: %s", rootPath);
-    return;
+    return true;
   }
   if (!root.isDirectory()) {
     LOG_ERR("SDREG", "Fonts path is not a directory: %s", rootPath);
-    return;
+    return true;
   }
 
   char nameBuffer[128];
@@ -174,7 +187,7 @@ void SdCardFontRegistry::scanRoot(const char* rootPath, std::vector<SdCardFontFa
       SdCardFontFamilyInfo family;
       family.name = nameBuffer;
       std::string subDirPath = std::string(rootPath) + "/" + nameBuffer;
-      SdCardFontRegistry::scanDirectory(subDirPath.c_str(), family);
+      if (!SdCardFontRegistry::scanDirectory(subDirPath.c_str(), family)) return false;
 
       if (!family.files.empty()) {
         out.push_back(std::move(family));
@@ -183,9 +196,16 @@ void SdCardFontRegistry::scanRoot(const char* rootPath, std::vector<SdCardFontFa
       entry.close();
     }
   }
+
+  if (root.allocationFailed()) {
+    LOG_ERR("SDREG", "Out of memory scanning font root: %s", rootPath);
+    return false;
+  }
+  return true;
 }
 
 bool SdCardFontRegistry::discover() {
+  discoveryFailed_ = false;
   families_.clear();
   // Most cards have fewer than 16 families. Grow only for unusually large
   // catalogs instead of permanently reserving 128 entries at boot.
@@ -193,8 +213,12 @@ bool SdCardFontRegistry::discover() {
 
   // Hidden root is scanned first so it wins on name collisions, matching the
   // sleep-folder pattern (/.sleep preferred over /sleep).
-  scanRoot(FONTS_DIR_HIDDEN, families_);
-  scanRoot(FONTS_DIR_VISIBLE, families_);
+  if (!scanRoot(FONTS_DIR_HIDDEN, families_) || !scanRoot(FONTS_DIR_VISIBLE, families_)) {
+    discoveryFailed_ = true;
+    clear();
+    LOG_ERR("SDREG", "Font discovery stopped after an out-of-memory directory scan");
+    return false;
+  }
 
   // Sort families alphabetically
   std::sort(families_.begin(), families_.end(),

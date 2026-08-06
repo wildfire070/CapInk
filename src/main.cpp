@@ -117,6 +117,9 @@ DictionaryRegistry dictionaryRegistry;
 FontCacheManager fontCacheManager(renderer.getFontMap(), renderer.getSdCardFonts());
 static unsigned long allowSleepAt = 0;
 static unsigned long lastX4ProPowerClickAt = 0;
+// A held power button can span deep-sleep wake and the first main-loop frame.
+// Do not treat that wake gesture as an in-session shortcut until it has been released.
+static bool powerButtonReleasedSinceWake = false;
 
 namespace {
 constexpr unsigned long X4PRO_POWER_DOUBLE_CLICK_MS = 500;
@@ -1040,7 +1043,7 @@ void setup() {
     // target == home (or reader with no open book): land on home — don't fall
     // through to the sleep-wake "resume reader" logic, which fires on stale
     // openEpubPath + lastSleepFromReader from a prior session.
-    activityManager.goHome();
+    activityManager.goHome(HomeMenuItem::NONE, true);
   } else if (APP_STATE.openEpubPath.empty() || !APP_STATE.lastSleepFromReader ||
              mappedInputManager.isPressed(MappedInputManager::Button::Back) || APP_STATE.readerActivityLoadCount > 0) {
     // Boot to home screen if no book is open, last sleep was not from reader, back button is held, or reader activity
@@ -1167,7 +1170,14 @@ void loop() {
     return;
   }
 
-  if (millis() >= allowSleepAt && handleGlobalPowerButtonAction(getPowerButtonAction())) {
+  // Do not feed the wake gesture into getPowerButtonAction(). In particular,
+  // the release edge can otherwise run the configured short/long Power action
+  // in the same loop that arms the post-wake guard.
+  if (!powerButtonReleasedSinceWake) {
+    if (!gpio.isPressed(HalGPIO::BTN_POWER)) {
+      powerButtonReleasedSinceWake = true;
+    }
+  } else if (millis() >= allowSleepAt && handleGlobalPowerButtonAction(getPowerButtonAction())) {
     lastActivityTime = millis();
     return;
   }

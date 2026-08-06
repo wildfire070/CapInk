@@ -12,6 +12,7 @@
 #include "KOReaderCredentialStore.h"
 #include "ProgressMapper.h"
 #include "activities/Activity.h"
+#include "activities/ScreenTransitionRefresh.h"
 
 class NearbyBookPositionSyncActivity final : public Activity {
  public:
@@ -71,6 +72,7 @@ class NearbyBookPositionSyncActivity final : public Activity {
   };
 
   State state_ = State::STARTING;
+  ScreenTransitionRefresh screenTransitionRefresh_;
   SemaphoreHandle_t eventMutex_ = nullptr;
   std::array<SyncEvent, MAX_SYNC_EVENTS> events_ = {};
   uint8_t eventHead_ = 0;

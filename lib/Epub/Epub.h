@@ -124,6 +124,8 @@ class Epub {
   const std::string& getTitle() const;
   const std::string& getAuthor() const;
   const std::string& getLanguage() const;
+  // True when parsed EPUB metadata identifies a cover image. Requires load().
+  bool hasCoverImage() const;
   std::string getCoverBmpPath(bool cropped = false) const;
   bool generateCoverBmp(bool cropped = false, const GfxRenderer* renderer = nullptr, int readerFontId = 0) const;
   std::string getThumbBmpPath() const;

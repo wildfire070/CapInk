@@ -1696,8 +1696,9 @@ std::optional<uint16_t> Section::getPageForVisibleTextOffset(const uint32_t offs
     uint16_t result = 0;
     for (uint16_t i = 0; i < build_->lutCount; i++) {
       const uint32_t start = build_->lut[i].visibleTextOffset;
-      if (start > offset || (preferFirstAtOffset && start == offset && i > 0)) break;
+      if (start > offset) break;
       result = i;
+      if (preferFirstAtOffset && start == offset) break;
     }
     const uint32_t last = build_->lut[build_->lutCount - 1].visibleTextOffset;
     if (offset <= last) return result;
@@ -1733,8 +1734,9 @@ std::optional<uint16_t> Section::getPageForVisibleTextOffset(const uint32_t offs
       return std::nullopt;
     }
     last = start;
-    if (start > offset || (preferFirstAtOffset && start == offset && i > 0)) break;
+    if (start > offset) break;
     result = i;
+    if (preferFirstAtOffset && start == offset) break;
   }
   if (version == SECTION_FILE_PARTIAL_VERSION && offset > last) return std::nullopt;
   return result;

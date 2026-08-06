@@ -20,12 +20,14 @@ class WifiCredentialStore : public PersistableStore<WifiCredentialStore> {
  private:
   std::vector<WifiCredential> credentials;
   std::string lastConnectedSsid;
+  bool loaded_ = false;
 
   static constexpr size_t MAX_NETWORKS = 8;
 
   // Private constructor for singleton
   WifiCredentialStore() = default;
   bool loadFromBinaryFile();
+  void ensureLoaded() const;
 
   friend class PersistableStore<WifiCredentialStore>;
 
@@ -41,7 +43,10 @@ class WifiCredentialStore : public PersistableStore<WifiCredentialStore> {
   const WifiCredential* findCredential(const std::string& ssid) const;
 
   // Get all stored credentials (for UI display)
-  const std::vector<WifiCredential>& getCredentials() const { return credentials; }
+  const std::vector<WifiCredential>& getCredentials() const {
+    ensureLoaded();
+    return credentials;
+  }
 
   // Check if a network is saved
   bool hasSavedCredential(const std::string& ssid) const;

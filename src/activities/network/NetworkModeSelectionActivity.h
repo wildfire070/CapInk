@@ -7,6 +7,7 @@
 #include <functional>
 
 #include "activities/Activity.h"
+#include "activities/ScreenTransitionRefresh.h"
 #include "util/ButtonNavigator.h"
 
 enum class NetworkMode { JOIN_NETWORK, CONNECT_CALIBRE, CREATE_HOTSPOT, NEARBY_BOOK_RECEIVE, NEARBY_STATS_SYNC };
@@ -38,6 +39,7 @@ class NetworkModeSelectionActivity final : public Activity {
   std::atomic<bool> uiReady{false};
   int visibleRows = 1;  // rows per page at the current scale; set by the screen builder
   int topIndex = 0;     // viewport scroll position, decoupled from the selection
+  ScreenTransitionRefresh screenTransitionRefresh;
 
   static void listScreen(UiApp::ScreenType& screen, void* user);
   static void onRowEvent(const freeink::ui::ActionEvent& event, void* user);

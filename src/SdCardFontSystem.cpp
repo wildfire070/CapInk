@@ -6,6 +6,7 @@
 #include <MemoryBudget.h>
 
 #include <cstdio>
+#include <cstring>
 
 #include "CrossPointSettings.h"
 #include "fontIds.h"
@@ -211,6 +212,12 @@ void SdCardFontSystem::ensureRegistry() {
   if (registryLoaded_ && !dirty) return;
   if (dirty) LOG_DBG("SDFS", "Registry dirty — re-discovering fonts");
   registry_.discover();
+  if (registry_.lastDiscoveryFailed()) {
+    LOG_ERR("SDFS", "SD font registry scan ran out of memory (free=%u maxAlloc=%u)", ESP.getFreeHeap(),
+            ESP.getMaxAllocHeap());
+    registryDirty_.store(true, std::memory_order_release);
+    return;
+  }
   registryLoaded_ = true;
 }
 
@@ -352,6 +359,11 @@ DictionaryFontActivation SdCardFontSystem::activateDictionaryFont(GfxRenderer& r
   if (!findInstalledFontFile(familyName, targetPointSize, FontFileSelection::Closest, path, sizeof(path),
                              selectedPointSize)) {
     LOG_DBG("SDFS", "Dictionary font not found on card: %s", familyName);
+    const char* globalFamilyName = SETTINGS.dictionarySdFontFamilyName;
+    if (globalFamilyName[0] != '\0' && std::strcmp(familyName, globalFamilyName) != 0) {
+      LOG_DBG("SDFS", "Using global dictionary font while per-book font is unavailable: %s", globalFamilyName);
+      return activateDictionaryFont(renderer, globalFamilyName, SETTINGS.dictionaryFontPointSize);
+    }
     const int readerFontId = restoreReaderFont(renderer);
     MemoryBudget::logHeapShape("dict.font_reader_fallback");
     return {readerFontId, false};
