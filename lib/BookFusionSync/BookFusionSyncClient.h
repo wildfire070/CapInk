@@ -87,6 +87,24 @@ class BookFusionSyncClient {
    */
   static Error searchBooks(int page, const char* list, BookFusionSearchResult& out);
 
+  /**
+   * Keep one HTTPS connection alive across the subsequent searchBooks()/
+   * getDownloadUrl() calls instead of paying for a fresh TLS handshake on
+   * every page turn. Each wolfSSL handshake leaves a lasting scar on
+   * ESP.getMaxAllocHeap() (transient handshake buffers fragment the heap);
+   * a few handshakes in a row inside one browsing session can leave the
+   * heap unable to grow a response buffer, aborting the firmware (no
+   * exceptions). Call once when entering the browser. No-op in the
+   * simulator build, which uses a different HTTP client with no comparable
+   * heap constraint.
+   */
+  static void beginSession();
+
+  /** Ends a session started with beginSession(). Call on browser exit, and
+   * before handing off to HttpDownloader for an actual book download so the
+   * idle session connection isn't held open during the transfer. */
+  static void endSession();
+
   /** Get the stored reading position for a book. */
   static Error getProgress(uint32_t bookId, BookFusionProgress& outProgress);
 

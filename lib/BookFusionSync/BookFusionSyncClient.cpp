@@ -4,8 +4,10 @@
 #ifdef SIMULATOR
 #include <ArduinoJsonStringCompat.h>
 #endif
+#include <HalStorage.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <Memory.h>
 #ifdef SIMULATOR
 #include <SecureHttpClient.h>
 #include <WiFi.h>
@@ -93,8 +95,47 @@ void addAuthHeaders(freeink::SecureHttpClient& http) {
   http.addHeader("Authorization", std::string("Bearer ") + BOOKFUSION_STORE.getAccessToken());
   http.addHeader("Accept", API_ACCEPT);
 }
+
+// Persistent client kept alive across a browse session (see beginSession()).
+// Owned by a unique_ptr so endSession()/re-entrant beginSession() cleanup is
+// automatic; a raw new would need a matching explicit delete on every exit
+// path.
+std::unique_ptr<freeink::SecureHttpClient> s_sessionClient;
+
+// Returns the session client if beginSession() is active, else initializes
+// and returns the caller's local fallback. Kept in one place so a future
+// caller can't forget the fallback's setInsecure() call.
+freeink::SecureHttpClient& resolveClient(freeink::SecureHttpClient& fallback) {
+  if (s_sessionClient) return *s_sessionClient;
+  fallback.setInsecure();
+  return fallback;
+}
 #endif
 }  // namespace
+
+void BookFusionSyncClient::beginSession() {
+#ifndef SIMULATOR
+  if (s_sessionClient) {
+    LOG_DBG("BFS", "Session already active");
+    return;
+  }
+  s_sessionClient = makeUniqueNoThrow<freeink::SecureHttpClient>();
+  if (!s_sessionClient) {
+    LOG_ERR("BFS", "OOM starting BookFusion session; falling back to per-request connections");
+    return;
+  }
+  s_sessionClient->setInsecure();
+  LOG_DBG("BFS", "Session started");
+#endif
+}
+
+void BookFusionSyncClient::endSession() {
+#ifndef SIMULATOR
+  if (!s_sessionClient) return;
+  s_sessionClient.reset();
+  LOG_DBG("BFS", "Session ended");
+#endif
+}
 
 BookFusionSyncClient::Error BookFusionSyncClient::startDeviceAuth(BookFusionDeviceAuth& outAuth) {
   lastHttpCode = 0;
@@ -260,6 +301,16 @@ BookFusionSyncClient::Error BookFusionSyncClient::searchBooks(int page, const ch
   std::string body;
   serializeJson(reqDoc, body);
 
+  // Discard every field but the ones we display; BookFusion book objects
+  // carry ~20 fields (cover URLs, descriptions, etc.) that would otherwise
+  // multiply JsonDocument heap use several times over for no benefit here.
+  JsonDocument filter;
+  filter[0]["id"] = true;
+  filter[0]["title"] = true;
+  filter[0]["authors"][0]["name"] = true;
+
+  JsonDocument doc;
+
 #ifdef SIMULATOR
   WiFiClientSecure secureClient;
   secureClient.setInsecure();
@@ -273,41 +324,95 @@ BookFusionSyncClient::Error BookFusionSyncClient::searchBooks(int page, const ch
   lastTransportError = (httpCode < 0) ? httpCode : 0;
   const String responseBody = http.getString();
   http.end();
-#else
-  freeink::SecureHttpClient http;
-  http.setInsecure();
-  if (!http.begin(url)) {
-    LOG_ERR("BFS", "Bad URL: %s", url.c_str());
-    return NETWORK_ERROR;
-  }
-  addAuthHeaders(http);
-  http.addHeader("Content-Type", "application/json");
-  const int httpCode = http.sendRequest("POST", body);
-  lastHttpCode = httpCode;
-  lastTransportError = (httpCode < 0) ? httpCode : 0;
-  const std::string responseBody = http.getString();
-  http.end();
-#endif
 
   LOG_DBG("BFS", "searchBooks page=%d response: %d", page, httpCode);
   if (httpCode <= 0) return NETWORK_ERROR;
   if (httpCode == 401) return AUTH_FAILED;
   if (httpCode != 200) return SERVER_ERROR;
 
-  // Discard every field but the ones we display; BookFusion book objects
-  // carry ~20 fields (cover URLs, descriptions, etc.) that would otherwise
-  // multiply JsonDocument heap use several times over for no benefit here.
-  JsonDocument filter;
-  filter[0]["id"] = true;
-  filter[0]["title"] = true;
-  filter[0]["authors"][0]["name"] = true;
-
-  JsonDocument doc;
   const DeserializationError error = deserializeJson(doc, responseBody.c_str(), DeserializationOption::Filter(filter));
   if (error) {
     logJsonParseFailure("searchBooks", error, responseBody.c_str());
     return JSON_ERROR;
   }
+#else
+  freeink::SecureHttpClient tmp;
+  freeink::SecureHttpClient& http = resolveClient(tmp);
+  if (!http.begin(url)) {
+    LOG_ERR("BFS", "Bad URL: %s", url.c_str());
+    return NETWORK_ERROR;
+  }
+  addAuthHeaders(http);
+  http.addHeader("Content-Type", "application/json");
+
+  // Stream the response straight to SD instead of buffering it in a
+  // std::string. Each wolfSSL handshake fragments the heap (see
+  // beginSession()), and a large response's std::string::append() growing
+  // past what the fragmented heap can offer calls abort() (no exceptions on
+  // this firmware). Parsing from a file sidesteps response size entirely.
+  static constexpr char TMP_PATH[] = "/.bookfusion_search.json";
+  bool writeOk = true;
+  int httpCode = -1;
+  {
+    HalFile tmpFile;
+    if (!Storage.openFileForWrite("BFS", TMP_PATH, tmpFile)) {
+      LOG_ERR("BFS", "searchBooks: failed to open temp file for write");
+      return SERVER_ERROR;
+    }
+    httpCode = http.sendRequest("POST", reinterpret_cast<const uint8_t*>(body.data()), body.size(),
+                                [&tmpFile, &writeOk](const uint8_t* data, size_t len) -> bool {
+                                  if (!writeOk) return false;
+                                  if (tmpFile.write(data, len) != len) {
+                                    writeOk = false;
+                                    return false;
+                                  }
+                                  return true;
+                                });
+    tmpFile.close();
+  }
+  lastHttpCode = httpCode;
+  lastTransportError = (httpCode < 0) ? httpCode : 0;
+
+  LOG_DBG("BFS", "searchBooks page=%d response: %d", page, httpCode);
+  if (!writeOk || httpCode <= 0) {
+    Storage.remove(TMP_PATH);
+    return NETWORK_ERROR;
+  }
+  if (httpCode == 401) {
+    Storage.remove(TMP_PATH);
+    return AUTH_FAILED;
+  }
+  if (httpCode != 200) {
+    Storage.remove(TMP_PATH);
+    return SERVER_ERROR;
+  }
+
+  DeserializationError error = DeserializationError::Ok;
+  {
+    HalFile readFile;
+    if (!Storage.openFileForRead("BFS", TMP_PATH, readFile)) {
+      LOG_ERR("BFS", "searchBooks: failed to open temp file for read");
+      Storage.remove(TMP_PATH);
+      return SERVER_ERROR;
+    }
+    struct HalFileReader {
+      HalFile& file;
+      int read() { return file.read(); }
+      size_t readBytes(char* buf, size_t len) {
+        const int n = file.read(buf, len);
+        return n < 0 ? 0 : static_cast<size_t>(n);
+      }
+    } reader{readFile};
+    error = deserializeJson(doc, reader, DeserializationOption::Filter(filter));
+    readFile.close();
+  }
+  Storage.remove(TMP_PATH);
+  if (error) {
+    logJsonParseFailure("searchBooks", error, nullptr);
+    return JSON_ERROR;
+  }
+#endif
+
   if (!doc.is<JsonArray>()) {
     LOG_ERR("BFS", "searchBooks: expected a JSON array");
     return JSON_ERROR;
@@ -473,8 +578,8 @@ BookFusionSyncClient::Error BookFusionSyncClient::getDownloadUrl(uint32_t bookId
   const String responseBody = http.getString();
   http.end();
 #else
-  freeink::SecureHttpClient http;
-  http.setInsecure();
+  freeink::SecureHttpClient tmp;
+  freeink::SecureHttpClient& http = resolveClient(tmp);
   if (!http.begin(url)) {
     LOG_ERR("BFS", "Bad URL: %s", url.c_str());
     return NETWORK_ERROR;
@@ -485,7 +590,6 @@ BookFusionSyncClient::Error BookFusionSyncClient::getDownloadUrl(uint32_t bookId
   lastHttpCode = httpCode;
   lastTransportError = (httpCode < 0) ? httpCode : 0;
   const std::string responseBody = http.getString();
-  http.end();
 #endif
 
   LOG_DBG("BFS", "getDownloadUrl book=%lu response: %d", (unsigned long)bookId, httpCode);

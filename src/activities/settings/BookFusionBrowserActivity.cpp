@@ -78,6 +78,7 @@ void BookFusionBrowserActivity::onEnter() {
   requestUpdate();
 
   if (!BookFusionSyncClient::getBearerToken().empty()) {
+    BookFusionSyncClient::beginSession();
     checkAndConnectWifi();
   } else {
     state = BrowserState::ERROR;
@@ -88,6 +89,7 @@ void BookFusionBrowserActivity::onEnter() {
 
 void BookFusionBrowserActivity::onExit() {
   Activity::onExit();
+  BookFusionSyncClient::endSession();
   page = BookFusionSearchResult{};
 
   if (WiFi.getMode() != WIFI_MODE_NULL) {
@@ -469,6 +471,11 @@ void BookFusionBrowserActivity::downloadBook(const BookFusionBook& book) {
 
   std::string downloadUrl;
   const auto urlErr = BookFusionSyncClient::getDownloadUrl(book.bookId, downloadUrl);
+  // End the browse session now: the actual EPUB transfer below goes through
+  // HttpDownloader on its own connection, so there's no reason to keep the
+  // BookFusion session's idle TLS connection open during a potentially long
+  // download.
+  BookFusionSyncClient::endSession();
   if (urlErr != BookFusionSyncClient::OK) {
     state = BrowserState::ERROR;
     errorMessage = BookFusionSyncClient::errorString(urlErr);
