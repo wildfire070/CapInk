@@ -437,12 +437,23 @@ bool CrossPointSettings::fromJson(JsonVariantConst doc) {
         char key[64];
         snprintf(key, sizeof(key), "%s_obf", info.key);
         obfuscation::DecodeStatus status = obfuscation::DecodeStatus::INVALID;
-        value = obfuscation::deobfuscateFromBase64(doc[key] | "", &status);
+        value = obfuscation::deobfuscateFromBase64(doc[key] | "", info.stringMaxLen - 1, &status);
         if (status == obfuscation::DecodeStatus::LEGACY && !value.empty()) needsResave = true;
+        if (status == obfuscation::DecodeStatus::TOO_LONG) {
+          LOG_ERR("CPS", "Oversized obfuscated value for key '%s'", info.key);
+          needsResave = true;
+        }
         if (status == obfuscation::DecodeStatus::INVALID || status == obfuscation::DecodeStatus::EMPTY ||
-            value.empty()) {
-          value = doc[info.key] | fieldDefault;
-          if (value != fieldDefault) needsResave = true;
+            status == obfuscation::DecodeStatus::TOO_LONG || value.empty()) {
+          const char* legacyValue = doc[info.key] | fieldDefault.c_str();
+          if (strlen(legacyValue) >= info.stringMaxLen) {
+            LOG_ERR("CPS", "Oversized plaintext value for key '%s'", info.key);
+            value = fieldDefault;
+            needsResave = true;
+          } else {
+            value = legacyValue;
+            if (value != fieldDefault) needsResave = true;
+          }
         }
       } else {
         value = doc[info.key] | fieldDefault;

@@ -2512,6 +2512,15 @@ void EpubReaderActivity::loop() {
   // finished. Two independent finished-book features key off this same condition.
   const bool atEndOfBook = currentSpineIndex > 0 && currentSpineIndex >= epub->getSpineItemsCount();
 
+  // Collect suggestions before arming the /Read move or handling an input that may
+  // leave the reader. render() normally gets here first, but its update is asynchronous;
+  // a queued page-turn/home input can otherwise exit and move the EPUB before the render
+  // task has scanned the book's original folder.
+  if (atEndOfBook && !endOfBookOptions.loaded()) {
+    RenderLock lock(*this);
+    endOfBookOptions.loadOnce(epub->getPath());
+  }
+
   // Drop this book from the Recent Books list; if the reader then pages back into the book,
   // re-add it. So removal only sticks if the reader leaves while still on the End-of-Book
   // screen. Acts only on the transition (guarded by recentsEntryRemoved) — no per-frame writes.
@@ -4679,8 +4688,8 @@ void EpubReaderActivity::render(RenderLock&& lock) {
 
   // Show end of book screen
   if (currentSpineIndex == epub->getSpineItemsCount()) {
-    // Sole load site: runs on the render task (serialized by RenderLock); the main
-    // task only reads the suggestions once the loaded flag is published
+    // Usually preloaded by loop() before the /Read move is armed. Keep this fallback
+    // for an initial render that wins the race with the main task.
     endOfBookOptions.loadOnce(epub->getPath());
     renderer.clearScreen();
     endOfBookOptions.render(renderer, mappedInput);

@@ -59,6 +59,14 @@
 
 ### Fixed
 
+- Long Wi-Fi, nearby-sync, and SD firmware-update error messages now wrap inside the usable screen area.
+- End-of-book suggestions are now collected from the book's original folder before a finished EPUB is moved to `/Read`.
+- KOReader Sync no longer crashes after Wi-Fi connects on X3/X4 while starting network time synchronization.
+- Firmware updates now reject images built for a different ESP32 chip family before writing them.
+- Saved Wi-Fi credentials are now protected against cross-task races and oversized corrupted values on dual-core devices.
+- Justified Chinese and Japanese EPUB text now keeps ruby annotations inside page margins and avoids unnecessary short lines.
+- Watchdog-triggered resets now open the existing crash-report flow instead of silently returning Home.
+- Translated Wi-Fi and clock labels no longer truncate text or time values in UTF-8 locales.
 - Manage Fonts now opens through a lightweight restart path, freeing reader memory before it loads the font catalog.
 - X4 network workflows now use a clean refresh when replacing whole screens, preventing prior content from remaining visible in File Transfer, Wi-Fi, Sync Progress, OPDS, updates, and nearby-transfer views.
 - Home and Recent Books no longer repeatedly try to generate a cover thumbnail for EPUBs that do not include a cover.
