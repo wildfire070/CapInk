@@ -11,7 +11,6 @@
 #include "MappedInputManager.h"
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
-#include "activities/settings/FontDownloadActivity.h"
 #include "activities/settings/FontSelectionActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
@@ -511,13 +510,7 @@ void ReaderOptionsActivity::toggleCurrentSetting() {
         persistReaderSettings();
         settingsDirty = false;
       }
-      startActivityForResult(std::make_unique<FontDownloadActivity>(renderer, mappedInput),
-                             [this](const ActivityResult&) {
-                               persistGlobalSettings();
-                               sdFontSystem.refreshIfDirty();
-                               rebuildSettingsList();
-                               requestUpdate();
-                             });
+      silentRestartToManageFonts();
       return;
     }
     if (setting.action == SettingAction::CustomiseStatusBar) {

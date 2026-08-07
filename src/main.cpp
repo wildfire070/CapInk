@@ -89,6 +89,7 @@ inline esp_sleep_wakeup_cause_t esp_sleep_get_wakeup_cause() { return ESP_SLEEP_
 #include "activities/reader/KOReaderSyncActivity.h"
 #include "activities/reader/ReadingStatsUtils.h"
 #include "activities/reader/StatsBackup.h"
+#include "activities/settings/FontDownloadActivity.h"
 #include "activities/settings/KOReaderAuthActivity.h"
 #include "activities/settings/KOReaderSettingsActivity.h"
 #include "activities/settings/OtaUpdateActivity.h"
@@ -408,6 +409,8 @@ void silentRestartToNetwork(const NetworkBootTarget target, const uint32_t paylo
   delay(50);
   restartWithSilentToken();
 }
+
+void silentRestartToManageFonts() { silentRestartToNetwork(NetworkBootTarget::MANAGE_FONTS); }
 
 void waitForPowerRelease() {
   gpio.update();
@@ -1031,6 +1034,17 @@ void setup() {
       case NetworkBootTarget::FILE_TRANSFER:
         launched = activityManager.resumeFileTransferFromNetworkBoot(snapshotPayload);
         break;
+      case NetworkBootTarget::MANAGE_FONTS: {
+        auto fontsActivity = makeUniqueNoThrow<FontDownloadActivity>(renderer, mappedInputManager);
+        if (fontsActivity) {
+          activityManager.replaceActivity(std::move(fontsActivity));
+          launched = true;
+        } else {
+          LOG_ERR("MAIN", "OOM: Manage Fonts activity after minimal boot (free=%u maxAlloc=%u)", ESP.getFreeHeap(),
+                  ESP.getMaxAllocHeap());
+        }
+        break;
+      }
     }
     if (!launched) {
       LOG_ERR("MAIN", "Minimal network boot target failed; returning home");
