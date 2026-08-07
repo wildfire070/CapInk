@@ -11,6 +11,7 @@
 #include "MappedInputManager.h"
 #include "SdCardFontSystem.h"
 #include "SettingsList.h"
+#include "SilentRestart.h"
 #include "activities/settings/FontSelectionActivity.h"
 #include "activities/settings/StatusBarSettingsActivity.h"
 #include "activities/util/IntervalSelectionActivity.h"
