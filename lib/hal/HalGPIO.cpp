@@ -12,6 +12,7 @@
 #include <driver/gpio.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
+#endif
 #if FREEINK_MCU_S3
 #include <soc/usb_serial_jtag_reg.h>
 #endif
